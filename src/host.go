@@ -40,6 +40,9 @@ type Host struct {
 	learned map[string]string
 	// choosing is the ambiguous name being chosen between, or nil.
 	choosing *choice
+	// published counts the projects publish has installed, so a read-back
+	// that started before one does not overwrite it with older names.
+	published int
 	// heard is when the hook last reported a project, zero until it has
 	// since this plugin started: the Claude Code tab's evidence that the
 	// hook is set up.

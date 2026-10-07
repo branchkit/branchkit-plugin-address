@@ -210,3 +210,35 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// A read-back that started before a publish must not replace the published
+// project with the older names it read.
+func TestALoadDuringAPublishKeepsTheNewProject(t *testing.T) {
+	f := newFakePlatform()
+	h := newHost(f, testLex)
+	if err := h.publish(projectReport{Cwd: "/old", Files: []string{"docs/OLD.md"}}); err != nil {
+		t.Fatal(err)
+	}
+	f.onList = func(name string) {
+		if name != filesCollection {
+			return
+		}
+		f.onList = nil
+		// The read has started; a report for another project publishes
+		// before it finishes. The fake returns what it holds after this,
+		// so make it return the old names, as the real read would have.
+		old := f.collections[filesCollection]
+		if err := h.publish(projectReport{Cwd: testCwd, Files: []string{"docs/MISSION.md"}}); err != nil {
+			t.Error(err)
+		}
+		f.mu.Lock()
+		f.collections[filesCollection] = old
+		f.mu.Unlock()
+	}
+	if err := h.loadProject(); err != nil {
+		t.Fatal(err)
+	}
+	if paths, cwd := h.lookup("mission"); cwd != testCwd || len(paths) != 1 {
+		t.Errorf("lookup(mission) = %q in %q; the stale read replaced the new project", paths, cwd)
+	}
+}

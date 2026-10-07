@@ -21,6 +21,10 @@ type fakePlatform struct {
 	replaces    int
 	refreshes   int
 	typeErr     error
+	// onPut and onList run before a Put or a ListAll, outside the lock, so
+	// a test can make something else happen in the middle of a call.
+	onPut  func(name string)
+	onList func(name string)
 }
 
 func newFakePlatform() *fakePlatform {
@@ -28,6 +32,9 @@ func newFakePlatform() *fakePlatform {
 }
 
 func (f *fakePlatform) ListAll(name string) ([]branchkit.CollectionRecord, error) {
+	if f.onList != nil {
+		f.onList(name)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ids := make([]string, 0, len(f.collections[name]))
@@ -55,6 +62,9 @@ func (f *fakePlatform) Replace(name string, entries []branchkit.CollectionPutEnt
 }
 
 func (f *fakePlatform) Put(name, id string, payload any) error {
+	if f.onPut != nil {
+		f.onPut(name)
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return err

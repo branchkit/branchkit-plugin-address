@@ -104,11 +104,33 @@ func listProject(ctx context.Context, cwd string) (*projectReport, error) {
 	}
 	added, _ := git("ls-files", "-z", "--others", "--exclude-standard")
 	modified, _ := git("ls-files", "-z", "--modified")
+	// The index still lists a file removed from disk (and --modified counts
+	// the removal as a change), so without this a moved or deleted file
+	// would be named, and ranked first.
+	deleted, _ := git("ls-files", "-z", "--deleted")
 	return &projectReport{
 		Cwd:     cwd,
-		Files:   append(tracked, added...),
-		Changed: append(modified, added...),
+		Files:   append(without(tracked, deleted), added...),
+		Changed: append(without(modified, deleted), added...),
 	}, nil
+}
+
+// without returns paths minus those in drop.
+func without(paths, drop []string) []string {
+	if len(drop) == 0 {
+		return paths
+	}
+	gone := make(map[string]bool, len(drop))
+	for _, p := range drop {
+		gone[p] = true
+	}
+	kept := paths[:0:0]
+	for _, p := range paths {
+		if !gone[p] {
+			kept = append(kept, p)
+		}
+	}
+	return kept
 }
 
 // findPlugin reads the connect.json the running plugin wrote beside its

@@ -169,6 +169,7 @@ func (h *Host) publish(rep projectReport) error {
 
 	h.mu.Lock()
 	h.project = project{cwd: rep.Cwd, names: names}
+	h.published++
 	h.mu.Unlock()
 	h.queueMu.Lock()
 	h.lastDigest = digest
@@ -220,6 +221,9 @@ func reportDigest(cwd string, files []string, changed map[string]bool) string {
 // "cite" for the last project before the next prompt reports it again. The
 // collection is the record of what was published, user-added names included.
 func (h *Host) loadProject() error {
+	h.mu.Lock()
+	before := h.published
+	h.mu.Unlock()
 	records, err := h.plugin.ListAll(filesCollection)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filesCollection, err)
@@ -236,7 +240,11 @@ func (h *Host) loadProject() error {
 		}
 	}
 	h.mu.Lock()
-	h.project = p
+	// A publish that landed during the read installed newer names than the
+	// read may have seen; keep those.
+	if h.published == before {
+		h.project = p
+	}
 	h.mu.Unlock()
 	return nil
 }

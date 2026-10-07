@@ -238,3 +238,32 @@ func TestATypingFailureIsReported(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// The hold can end while a choice is still being written: the name decodes
+// at the release, so the action and the hold's end arrive together. The end
+// must still win: no gate left behind to swallow the next hold, no window.
+func TestAHoldEndingMidOfferLeavesNothingOpen(t *testing.T) {
+	paths := []string{"voice/src/main.go", "voice/stages/a/main.rs"}
+	h, f := hostWith(t, nameTable{"voice main": paths})
+	f.onPut = func(name string) {
+		if name == choosingTag {
+			f.onPut = nil
+			h.closeChoices() // the session boundary, between the badges and the gate
+		}
+	}
+	if err := h.cite("voice main"); err != nil {
+		t.Fatal(err)
+	}
+	if f.has(choosingTag, "singleton") || f.count(choicesCollection) != 0 {
+		t.Error("the gate or the badges outlived the hold")
+	}
+	if f.hidden == 0 {
+		t.Error("the window outlived the hold")
+	}
+	h.mu.Lock()
+	open := h.choosing != nil
+	h.mu.Unlock()
+	if open {
+		t.Error("no choice should be open")
+	}
+}

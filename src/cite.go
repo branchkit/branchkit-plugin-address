@@ -137,17 +137,24 @@ func (h *Host) offer(c choice) error {
 		})
 	}
 
-	// The choices first, then the gate that makes them the only thing
-	// heard: the other order would open a mode with nothing in it.
-	if _, err := h.plugin.Replace(choicesCollection, entries, branchkit.ScopeCollection()); err != nil {
-		return fmt.Errorf("publish choices: %w", err)
-	}
-	if err := h.plugin.Put(choosingTag, "singleton", struct{}{}); err != nil {
-		return fmt.Errorf("enter choosing: %w", err)
-	}
+	// The choice is recorded before anything is written, so a hold that
+	// ends while it is being written (the name decodes at the release, so
+	// the action and the hold's end arrive together) finds it open and
+	// closes it, rather than finding nothing and leaving the gate behind.
 	h.mu.Lock()
 	h.choosing = &c
 	h.mu.Unlock()
+
+	// The choices first, then the gate that makes them the only thing
+	// heard: the other order would open a mode with nothing in it.
+	if _, err := h.plugin.Replace(choicesCollection, entries, branchkit.ScopeCollection()); err != nil {
+		h.abandon(&c)
+		return fmt.Errorf("publish choices: %w", err)
+	}
+	if err := h.plugin.Put(choosingTag, "singleton", struct{}{}); err != nil {
+		h.abandon(&c)
+		return fmt.Errorf("enter choosing: %w", err)
+	}
 
 	footer := "say a number, or cancel"
 	doc := branchkit.OutputState{
@@ -167,7 +174,31 @@ func (h *Host) offer(c choice) error {
 	if err := h.plugin.HUDShow(branchkit.HUDShowRequest{Channel: hudChannel}); err != nil {
 		branchkit.Logf(pluginID, "choices show: %v", err)
 	}
+	// Closed while it was being written: the close cleared what existed
+	// then, and the writes since put the gate and the window back. Clear
+	// them again.
+	if !h.isChoosing(&c) {
+		h.clearChoices()
+	}
 	return nil
+}
+
+func (h *Host) isChoosing(c *choice) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.choosing == c
+}
+
+// abandon closes a choice that failed to open, unless something else has
+// already closed it.
+func (h *Host) abandon(c *choice) {
+	h.mu.Lock()
+	mine := h.choosing == c
+	if mine {
+		h.choosing = nil
+	}
+	h.mu.Unlock()
+	h.clearChoices()
 }
 
 func countFiles(n int) string {
@@ -188,6 +219,11 @@ func (h *Host) closeChoices() {
 	if !open {
 		return
 	}
+	h.clearChoices()
+}
+
+// clearChoices removes the gate, the badges and the window.
+func (h *Host) clearChoices() {
 	if _, err := h.plugin.Delete(choosingTag, "singleton"); err != nil {
 		branchkit.Logf(pluginID, "leave choosing: %v", err)
 	}

@@ -169,3 +169,23 @@ func TestFindPluginReportsAPluginThatIsNotRunning(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// A file removed from disk but still in the index is not named, and does
+// not rank first as changed.
+func TestListProjectLeavesOutDeletedFiles(t *testing.T) {
+	dir := gitRepo(t)
+	if err := os.Remove(filepath.Join(dir, "docs", "DEV_LOOP.md")); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := listProject(context.Background(), dir)
+	if err != nil || rep == nil {
+		t.Fatalf("rep %v, err %v", rep, err)
+	}
+	for _, list := range [][]string{rep.Files, rep.Changed} {
+		for _, p := range list {
+			if p == "docs/DEV_LOOP.md" {
+				t.Errorf("deleted file listed: files %q changed %q", rep.Files, rep.Changed)
+			}
+		}
+	}
+}
