@@ -1,0 +1,11 @@
+/* The address plugin's Claude Code tab. Shipped through RenderSettingsResponse.CSS. */
+
+.address-setup ol { margin: var(--size--2) 0; padding-left: var(--size-1); }
+.address-setup li + li { margin-top: var(--size--3); }
+/* The hooks to paste: read-only, selected whole on focus, so a person copies
+   it with one keystroke and never edits it by accident. */
+.address-snippet {
+    font-size: var(--font-size--2);
+    resize: vertical;
+    white-space: pre;
+}

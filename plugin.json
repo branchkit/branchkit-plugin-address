@@ -143,6 +143,8 @@
     "voice_commands": "commands.json"
   },
   "implements": {
-    "on_action": true
+    "settings_tabs": [{ "label": "Claude Code", "key": "claude_code" }],
+    "on_action": true,
+    "render_settings": true
   }
 }

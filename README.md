@@ -71,8 +71,11 @@ The plugin does not read your disk. Claude Code tells it which project you
 are in: the plugin's own binary, run as `address-plugin claude-hook`, is a
 Claude Code hook that lists the project's files with `git ls-files` and sends
 them to the plugin over the socket it listens on (its port and pairing token
-are in `connect.json` beside the binary). Add it to `~/.claude/settings.json`,
-with the path to the plugin's folder in your BranchKit installation:
+are in `connect.json` beside the binary). Add it to `~/.claude/settings.json`.
+The plugin's **Claude Code** settings tab shows these hooks with the path of
+your installation filled in, ready to copy, and whether Claude Code has
+reported a project yet. By hand, with the path to the plugin's folder in
+your BranchKit installation:
 
 ```json
 {

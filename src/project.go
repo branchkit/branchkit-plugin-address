@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -81,8 +82,17 @@ func (h *Host) handleProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad report: cwd must be an absolute path", http.StatusBadRequest)
 		return
 	}
+	h.mu.Lock()
+	first := h.heard.IsZero()
+	h.heard = time.Now()
+	h.mu.Unlock()
 	h.submit(rep)
 	w.WriteHeader(http.StatusAccepted)
+	// The first report turns the Claude Code tab from "not set up" to
+	// connected; later ones redraw it when they publish.
+	if first {
+		h.refreshSettings()
+	}
 }
 
 // submit queues a report for publishing. Only the newest waiting report is
@@ -164,7 +174,16 @@ func (h *Host) publish(rep projectReport) error {
 	h.lastDigest = digest
 	h.queueMu.Unlock()
 	branchkit.Logf(pluginID, "published %d names for %d files in %s", len(names), len(ranked), rep.Cwd)
+	h.refreshSettings()
 	return nil
+}
+
+// refreshSettings redraws an open Claude Code tab, which shows the project
+// and when it was reported.
+func (h *Host) refreshSettings() {
+	if err := h.plugin.SettingsRefresh(); err != nil {
+		branchkit.Logf(pluginID, "refresh settings: %v", err)
+	}
 }
 
 func fileEntries(cwd string, names nameTable) ([]branchkit.CollectionPutEntry, error) {

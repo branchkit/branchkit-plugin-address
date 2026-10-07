@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -21,6 +22,7 @@ type platform interface {
 	OutputClear(branchkit.OutputClearRequest) (*branchkit.OutputClearResponse, error)
 	HUDShow(branchkit.HUDShowRequest) error
 	HUDHide(branchkit.HUDHideRequest) error
+	SettingsRefresh() error
 }
 
 // Host is what every handler needs. Handlers are methods on it, so a
@@ -38,6 +40,10 @@ type Host struct {
 	learned map[string]string
 	// choosing is the ambiguous name being chosen between, or nil.
 	choosing *choice
+	// heard is when the hook last reported a project, zero until it has
+	// since this plugin started: the Claude Code tab's evidence that the
+	// hook is set up.
+	heard time.Time
 
 	// Reports are published one at a time, the newest winning: a report
 	// that arrives while another publishes replaces any still waiting.

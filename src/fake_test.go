@@ -19,6 +19,7 @@ type fakePlatform struct {
 	shown       int
 	hidden      int
 	replaces    int
+	refreshes   int
 	typeErr     error
 }
 
@@ -110,6 +111,13 @@ func (f *fakePlatform) HUDHide(branchkit.HUDHideRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.hidden++
+	return nil
+}
+
+func (f *fakePlatform) SettingsRefresh() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refreshes++
 	return nil
 }
 

@@ -1,11 +1,15 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
+
+//go:embed settings.css
+var settingsCSS string
 
 func main() {
 	// The same binary is the Claude Code hook (hook.go).
@@ -29,6 +33,9 @@ func main() {
 		h.closeChoices()
 		return nil, nil
 	})
+
+	p.SettingsCSS(settingsCSS)
+	p.SettingsTab("claude_code", h.renderClaudeTab)
 
 	// A choice lasts one hold: the gate and the badges clear themselves when
 	// it ends (manifest lifecycle); the window and the open choice are this
