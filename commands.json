@@ -1,0 +1,25 @@
+[
+  {
+    "pattern": ["cite", "<file:address_files>"],
+    "action": { "type": "address.cite", "params": { "name": "{file}" } },
+    "discovery": "exclusive",
+    "category": "Addresses",
+    "description": "Type a project file's address, @path for Claude Code. Say \"cite\", then the file's name, in one breath or two."
+  },
+  {
+    "pattern": ["<choice:plugin.address.choices>"],
+    "action": { "type": "address.insert", "params": { "path": "{choice}" } },
+    "requires_tags": ["plugin.address.choosing"],
+    "clears_tags": ["plugin.address.choosing"],
+    "category": "Addresses",
+    "description": "Pick the file whose badge number you say, when a name could mean several."
+  },
+  {
+    "pattern": ["cancel"],
+    "action": { "type": "address.dismiss" },
+    "requires_tags": ["plugin.address.choosing"],
+    "clears_tags": ["plugin.address.choosing"],
+    "category": "Addresses",
+    "description": "Close the file choices without typing anything."
+  }
+]

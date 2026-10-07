@@ -1,0 +1,171 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/branchkit/plugin-sdk-go"
+)
+
+// gitRepo makes a repository with committed, modified and new files, and a
+// subfolder to run from.
+func gitRepo(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(p, s string) {
+		t.Helper()
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("init", "-q")
+	write("README.md", "x")
+	write("docs/MISSION.md", "x")
+	write("docs/DEV_LOOP.md", "x")
+	write(".gitignore", "build/\n")
+	run("add", ".")
+	run("commit", "-q", "-m", "init")
+	write("docs/MISSION.md", "changed")
+	write("docs/NEW.md", "new")
+	write("build/out.bin", "ignored")
+	return dir
+}
+
+func TestListProjectListsFilesRelativeToTheFolder(t *testing.T) {
+	dir := gitRepo(t)
+	rep, err := listProject(context.Background(), filepath.Join(dir, "docs"))
+	if err != nil || rep == nil {
+		t.Fatalf("rep %v, err %v", rep, err)
+	}
+	files := append([]string(nil), rep.Files...)
+	sort.Strings(files)
+	if want := []string{"DEV_LOOP.md", "MISSION.md", "NEW.md"}; !reflect.DeepEqual(files, want) {
+		t.Errorf("files = %q, want %q (relative to docs/, ignored files left out)", files, want)
+	}
+	changed := append([]string(nil), rep.Changed...)
+	sort.Strings(changed)
+	if want := []string{"MISSION.md", "NEW.md"}; !reflect.DeepEqual(changed, want) {
+		t.Errorf("changed = %q, want %q", changed, want)
+	}
+}
+
+func TestListProjectOutsideGitIsNothing(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	rep, err := listProject(context.Background(), t.TempDir())
+	if rep != nil || err != nil {
+		t.Errorf("rep %v, err %v; want nothing", rep, err)
+	}
+}
+
+// pluginServer is the plugin's listener as the hook meets it: connect.json
+// in a plugin folder, a token, the /project route.
+func pluginServer(t *testing.T, h *Host) (dir string, token string) {
+	t.Helper()
+	token = "secret-token"
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /project", h.handleProject)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	u, _ := url.Parse(srv.URL)
+	dir = t.TempDir()
+	raw, _ := json.Marshal(branchkit.ConnectInfo{Port: u.Port(), Token: token})
+	if err := os.WriteFile(filepath.Join(dir, "connect.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir, token
+}
+
+func TestTheHookSendsTheProjectToThePlugin(t *testing.T) {
+	repo := gitRepo(t)
+	f := newFakePlatform()
+	h := newHost(f, englishLexicon())
+	pluginDir, _ := pluginServer(t, h)
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", pluginDir)
+
+	in, _ := json.Marshal(hookInput{Cwd: repo, SessionID: "s1", HookEventName: "UserPromptSubmit"})
+	if err := claudeHook(context.Background(), bytes.NewReader(in)); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return f.has(filesCollection, "mission") })
+	if err := h.cite("mission"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.typedText(); !reflect.DeepEqual(got, []string{"@docs/MISSION.md "}) {
+		t.Errorf("typed %q", got)
+	}
+}
+
+func TestTheHookIsRefusedWithoutTheToken(t *testing.T) {
+	h := newHost(newFakePlatform(), testLex)
+	pluginDir, _ := pluginServer(t, h)
+	raw, _ := os.ReadFile(filepath.Join(pluginDir, "connect.json"))
+	var info branchkit.ConnectInfo
+	_ = json.Unmarshal(raw, &info)
+	info.Token = "wrong"
+	err := sendReport(context.Background(), info, &projectReport{Cwd: "/x"})
+	if err == nil || !strings.Contains(err.Error(), "403") {
+		t.Errorf("err = %v, want a refusal", err)
+	}
+}
+
+// The hook never blocks or pollutes the prompt: whatever goes wrong, it
+// exits 0 and writes only to stderr.
+func TestTheHookNeverFailsThePrompt(t *testing.T) {
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", t.TempDir()) // no connect.json: plugin not running
+	repo := gitRepo(t)
+	for _, input := range []string{
+		"not json",
+		`{"cwd":""}`,
+		`{"cwd":"` + repo + `"}`,
+	} {
+		var stderr bytes.Buffer
+		if code := runClaudeHook(strings.NewReader(input), &stderr); code != 0 {
+			t.Errorf("%s: exit %d", input, code)
+		}
+		if stderr.Len() == 0 {
+			t.Errorf("%s: the problem should be reported on stderr", input)
+		}
+	}
+}
+
+func TestFindPluginReportsAPluginThatIsNotRunning(t *testing.T) {
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", t.TempDir())
+	if _, err := findPlugin(); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Errorf("err = %v", err)
+	}
+}

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://branchkit.dev/schemas/manifest.json",
+  "id": "address",
+  "name": "Address",
+  "icon": "at-sign",
+  "version": "0.1.0",
+  "min_api_version": "0.2.0",
+  "description": "Say a file's name, get its address typed where you are writing: \"cite mission\" types @docs/MISSION.md into Claude Code.",
+  "author": "BranchKit",
+  "publisher": "github:branchkit",
+  "requires": {
+    "privileges": [
+      "input"
+    ],
+    "reasons": {
+      "privilege:input": "To type a file's address where the cursor is."
+    },
+    "sockets": {
+      "listen": [
+        { "id": "hook", "port": 0 }
+      ]
+    },
+    "capabilities": {
+      "uses": [
+        "hud.show",
+        "hud.hide",
+        "input.type_text"
+      ]
+    }
+  },
+  "dev": {
+    "build": [
+      ["go", "build", "-ldflags=-s -w", "-o", "../address-plugin", "."]
+    ],
+    "build_dir": "src"
+  },
+  "run": "./address-plugin",
+  "action_prefix": "address",
+  "action_types": {
+    "cite": {
+      "uses": ["input.type_text"],
+      "label": "Cite a File",
+      "consequence": "reversible",
+      "fields": [
+        { "key": "name", "label": "Spoken name", "placeholder": "dev loop", "field_type": "string", "required": true }
+      ]
+    },
+    "insert": {
+      "uses": ["input.type_text"],
+      "label": "Type a File's Address",
+      "consequence": "reversible",
+      "fields": [
+        { "key": "path", "label": "Path", "placeholder": "docs/MISSION.md", "field_type": "string", "required": true }
+      ]
+    },
+    "dismiss": {
+      "label": "Close the File Choices",
+      "consequence": "reversible"
+    }
+  },
+  "hud_windows": [
+    {
+      "channel": "address",
+      "anchor": "bottom-center",
+      "width": 420,
+      "min_height": 60,
+      "description": "The files a name could mean, numbered, while you choose"
+    }
+  ],
+  "provides": {
+    "collections": {
+      "address_files": {
+        "id_strategy": { "type": "by_field", "field": "spoken" },
+        "preset": "named_entities",
+        "durable": true,
+        "label": "Files you can cite",
+        "fields": [
+          { "key": "spoken", "field_type": "string", "label": "Spoken name", "required": true },
+          { "key": "paths", "field_type": "string[]", "label": "Files it could mean" },
+          { "key": "cwd", "field_type": "string", "label": "Folder the paths are relative to" }
+        ],
+        "feeds_matching": {
+          "type": "as_named_entities",
+          "key_field": "spoken",
+          "value_field": "spoken"
+        },
+        "description": "The spoken names of the files in the project you are working in, each with the file or files it could mean. Published from the Claude Code hook each time you send a prompt, so it follows the project of your latest prompt. A name with more than one file asks which when you say it."
+      },
+      "plugin.address.choices": {
+        "id_strategy": { "type": "by_field", "field": "codeword" },
+        "preset": "named_entities",
+        "writers": "introducer_only",
+        "fields": [
+          { "key": "codeword", "field_type": "string", "label": "Badge" },
+          { "key": "path", "field_type": "string", "label": "File" }
+        ],
+        "lifecycle": {
+          "type": "clear_on_event",
+          "events": ["_platform.input.session_boundary"]
+        },
+        "feeds_matching": {
+          "type": "as_named_entities",
+          "key_field": "codeword",
+          "value_field": "path"
+        },
+        "description": "While you choose which file an ambiguous name meant: each badge number and the file it picks. Cleared when the hold ends."
+      },
+      "plugin.address.choosing": {
+        "preset": "tag",
+        "writers": "introducer_only",
+        "fields": [],
+        "lifecycle": {
+          "type": "clear_on_event",
+          "events": ["_platform.input.session_boundary"]
+        },
+        "exclusive": true,
+        "feeds_matching": {
+          "type": "as_gates",
+          "scoped": true
+        },
+        "description": "Choosing which file an ambiguous name meant. Exclusive, so only the badge numbers and \"cancel\" are heard until you pick or the hold ends."
+      },
+      "plugin.address.learned": {
+        "preset": "data",
+        "writers": "introducer_only",
+        "durable": true,
+        "label": "Names you have taught",
+        "fields": [
+          { "key": "cwd", "field_type": "string", "label": "Project folder" },
+          { "key": "spoken", "field_type": "string", "label": "Spoken name" },
+          { "key": "path", "field_type": "string", "label": "File it means" }
+        ],
+        "description": "Your answers to \"which file?\": once you pick a file for a name that could mean several, saying that name in that project types it directly. Delete a record here to be asked again."
+      }
+    }
+  },
+  "consumes": {
+    "events": [
+      { "pattern": "_platform.input.session_boundary" }
+    ]
+  },
+  "collection_data": {
+    "voice_commands": "commands.json"
+  },
+  "implements": {
+    "on_action": true
+  }
+}
