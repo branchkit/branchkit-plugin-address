@@ -23,6 +23,7 @@ type platform interface {
 	HUDShow(branchkit.HUDShowRequest) error
 	HUDHide(branchkit.HUDHideRequest) error
 	SettingsRefresh() error
+	NativeFormatDate(branchkit.NativeFormatDateRequest) (*branchkit.NativeFormatDateResponse, error)
 }
 
 // Host is what every handler needs. Handlers are methods on it, so a

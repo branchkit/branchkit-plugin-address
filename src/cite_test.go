@@ -10,10 +10,25 @@ import (
 
 const testCwd = "/work/project"
 
+// testDeck is the alphabet hostWith publishes, in the order the badges take
+// it (sorted).
+var testDeck = []string{"aim", "bus", "car", "day", "easy", "fame", "gold", "hat", "ice", "jam", "kit", "lime"}
+
+func seedAlphabet(t *testing.T, f *fakePlatform) {
+	t.Helper()
+	for i, w := range testDeck {
+		letter := string(rune('a' + i))
+		if err := f.Put(alphabetCollection, letter, map[string]string{"codeword": w, "letter": letter}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // hostWith returns a host whose published project has exactly these names.
 func hostWith(t *testing.T, names nameTable) (*Host, *fakePlatform) {
 	t.Helper()
 	f := newFakePlatform()
+	seedAlphabet(t, f)
 	h := newHost(f, testLex)
 	entries, err := fileEntries(testCwd, names)
 	if err != nil {
@@ -67,7 +82,7 @@ func TestCitingANameThePersonAddedReadsItBack(t *testing.T) {
 	}
 }
 
-func TestCitingAnAmbiguousNameOffersNumberedChoices(t *testing.T) {
+func TestCitingAnAmbiguousNameOffersBadgedChoices(t *testing.T) {
 	paths := []string{"voice/src/main.go", "voice/stages/a/main.rs"}
 	h, f := hostWith(t, nameTable{"voice main": paths})
 	if err := h.cite("voice main"); err != nil {
@@ -78,10 +93,10 @@ func TestCitingAnAmbiguousNameOffersNumberedChoices(t *testing.T) {
 	}
 	// The badge words are what the choosing mode hears; each picks its file.
 	for i, p := range paths {
-		raw := f.collections[choicesCollection][badges[i]]
+		raw := f.collections[choicesCollection][testDeck[i]]
 		var rec map[string]string
-		if err := json.Unmarshal(raw, &rec); err != nil || rec["path"] != p || rec["codeword"] != badges[i] {
-			t.Errorf("badge %q = %s, want %s", badges[i], raw, p)
+		if err := json.Unmarshal(raw, &rec); err != nil || rec["path"] != p || rec["codeword"] != testDeck[i] {
+			t.Errorf("badge %q = %s, want %s", testDeck[i], raw, p)
 		}
 	}
 	if !f.has(choosingTag, "singleton") {
@@ -95,7 +110,8 @@ func TestCitingAnAmbiguousNameOffersNumberedChoices(t *testing.T) {
 		t.Fatalf("doc = %+v", doc)
 	}
 	item := doc.Sections[0].Items[1]
-	if item.Phrase != "two" || !strings.Contains(item.Title, "voice/stages/a/main.rs") {
+	// The word to say is the title, the file beneath it.
+	if item.Phrase != "bus" || item.Title != "bus" || item.Subtitle == nil || *item.Subtitle != "voice/stages/a/main.rs" {
 		t.Errorf("item = %+v", item)
 	}
 	// Any renderer can confirm an item without the voice path.
@@ -117,8 +133,8 @@ func TestChoicesAreCappedAtNine(t *testing.T) {
 	if err := h.cite("notes"); err != nil {
 		t.Fatal(err)
 	}
-	if n := f.count(choicesCollection); n != len(badges) {
-		t.Errorf("%d choices, want %d", n, len(badges))
+	if n := f.count(choicesCollection); n != maxChoices {
+		t.Errorf("%d choices, want %d", n, maxChoices)
 	}
 }
 
@@ -265,5 +281,65 @@ func TestAHoldEndingMidOfferLeavesNothingOpen(t *testing.T) {
 	h.mu.Unlock()
 	if open {
 		t.Error("no choice should be open")
+	}
+}
+
+// Without a published alphabet the choices are still sayable: numbered.
+func TestWithoutAnAlphabetChoicesAreNumbered(t *testing.T) {
+	h, f := hostWith(t, nameTable{"notes": {"a/notes.md", "b/notes.md"}})
+	f.mu.Lock()
+	delete(f.collections, alphabetCollection)
+	f.mu.Unlock()
+	if err := h.cite("notes"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.has(choicesCollection, "one") || !f.has(choicesCollection, "two") {
+		t.Errorf("choices = %v", f.collections[choicesCollection])
+	}
+}
+
+// A name whose other files are all tests, fixtures or vendored code types
+// the one that is not, without asking.
+func TestAClearWinnerIsTypedWithoutAsking(t *testing.T) {
+	h, f := hostWith(t, nameTable{"mission": {
+		"docs/MISSION.md",
+		"branchkit-extension/test-fixtures/lifecycle/mission.html",
+	}})
+	if err := h.cite("mission"); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.typedText(); !reflect.DeepEqual(got, []string{"@docs/MISSION.md "}) {
+		t.Errorf("typed %q", got)
+	}
+	if f.shown != 0 || f.count(learnedCollection) != 0 {
+		t.Error("a clear winner neither asks nor teaches")
+	}
+}
+
+// Two files that could both be meant are a real choice, whatever the rank.
+func TestTwoRealCandidatesStillAsk(t *testing.T) {
+	h, f := hostWith(t, nameTable{"notes": {"notes.md", "docs/notes.md", "vendor/x/notes.md"}})
+	if err := h.cite("notes"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.typedText()) != 0 || f.shown != 1 {
+		t.Errorf("typed %q, shown %d", f.typedText(), f.shown)
+	}
+}
+
+func TestIncidental(t *testing.T) {
+	for p, want := range map[string]bool{
+		"docs/MISSION.md":                   false,
+		"src/testing/helper.go":             false,
+		"test/main_test.go":                 true,
+		"a/b/test-fixtures/c/mission.html":  true,
+		"web/node_modules/react/index.js":   true,
+		"third_party/mime_guess/src/lib.rs": true,
+		"Tests/AppTests/Fixtures/x.json":    true,
+		"README.md":                         false,
+	} {
+		if got := incidental(p); got != want {
+			t.Errorf("incidental(%q) = %v, want %v", p, got, want)
+		}
 	}
 }

@@ -83,7 +83,7 @@ func TestAReportConnectsTheTab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Connected", "Claude Code reported this project at", testCwd, "names for 2 files"} {
+	for _, want := range []string{"Connected", "Claude Code reported this project at formatted 20", testCwd, "names for 2 files"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("tab missing %q", want)
 		}
@@ -134,15 +134,5 @@ func TestHookSettingsShape(t *testing.T) {
 		if len(m) != 1 || len(m[0].Hooks) != 1 || m[0].Hooks[0].Command != cmd || m[0].Hooks[0].Type != "command" {
 			t.Errorf("%s = %+v", event, m)
 		}
-	}
-}
-
-func TestHeardAt(t *testing.T) {
-	now := time.Date(2026, 10, 7, 18, 0, 0, 0, time.Local)
-	if got := heardAt(now.Add(-time.Hour), now); got != "5:00 PM" {
-		t.Errorf("today: %q", got)
-	}
-	if got := heardAt(now.Add(-48*time.Hour), now); got != "Oct 5, 6:00 PM" {
-		t.Errorf("earlier: %q", got)
 	}
 }

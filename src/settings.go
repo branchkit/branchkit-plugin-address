@@ -59,7 +59,7 @@ func (h *Host) renderClaudeTab(_ *branchkit.RenderSettingsRequest) (string, erro
 	switch {
 	case !heard.IsZero():
 		data.Status = hookConnected
-		data.Heard = heardAt(heard, time.Now())
+		data.Heard = h.formatHeard(heard)
 	case data.Names > 0:
 		data.Status = hookEarlier
 	}
@@ -84,14 +84,17 @@ func plural(n int, noun string) string {
 	return strconv.Itoa(n) + " " + noun + "s"
 }
 
-// heardAt says when a report arrived: the time alone today, the date too
-// before that.
-func heardAt(t, now time.Time) string {
-	t, now = t.Local(), now.Local()
-	if y, m, d := t.Date(); y == now.Year() && m == now.Month() && d == now.Day() {
-		return t.Format("3:04 PM")
+// formatHeard says when a report arrived, in the person's zone and locale,
+// formatted by the platform (native.format_date): the sandbox does not give
+// this process the zone, so formatting here would print UTC. Falls back to
+// the RFC 3339 instant, never to an invented pattern.
+func (h *Host) formatHeard(t time.Time) string {
+	when := t.UTC().Format(time.RFC3339)
+	res, err := h.plugin.NativeFormatDate(branchkit.NativeFormatDateRequest{When: when, Style: "date_time"})
+	if err != nil || res == nil || res.Value == "" {
+		return when
 	}
-	return t.Format("Jan 2, 3:04 PM")
+	return res.Value
 }
 
 // pluginBinary is the path of this plugin's binary as the person's

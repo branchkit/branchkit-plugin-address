@@ -20,7 +20,7 @@ come first; other things (branches, issues, notes) and other destinations
 |---|---|
 | `mention <file>` | Type the file's address, `@path` and a space |
 | `mention`, then `<file>` | The same in two breaths: after "mention", only file names are heard |
-| a number (`one` … `nine`) | When a name could mean several files, pick the one with that badge |
+| the word beside a file (`aim`, `bus`, …) | When a name could mean several files, pick that one |
 | `cancel` | Close the choices without typing anything |
 
 ## How files get their names
@@ -57,11 +57,20 @@ left out.
 
 ### When a name could mean several files
 
-Saying it shows the files, numbered, the most likely first. Say the number
-(in the same hold) and that file's address is typed. Your answer is
-remembered: in that project, the name means that file from now on. Answers
-are records in the `plugin.address.learned` collection, where you can see
-them and delete one to be asked again.
+When every other file the name could mean is in a test, fixture or vendored
+folder (`test`, `tests`, `__tests__`, `testdata`, `fixtures`,
+`test-fixtures`, `mocks`, `vendor`, `third_party`, `node_modules`), the one
+that is not is typed without asking: "mention mission" types
+`docs/MISSION.md`, not a fixture called `mission.html`. The others keep their
+longer names ("lifecycle mission"), so they can still be said.
+
+Otherwise saying it shows the files, the most likely first, each badged with
+a word from BranchKit's alphabet (the same words browser hints and every
+other list use). Say the word (in the same hold) and that file's address is
+typed. Without the alphabet (it is published by the voice plugin) the badges
+are numbers. Your answer is remembered: in that project, the name means that
+file from now on. Answers are records in the `plugin.address.learned`
+collection, where you can see them and delete one to be asked again.
 
 A name shared by more than nine files is not a name; say more of its path.
 
@@ -122,6 +131,9 @@ the next project report replaces the published names.
 | Privilege | Why |
 |---|---|
 | `input` | Type the address where the cursor is |
+| `locale` | Show when Claude Code last reported, in your own time zone and format |
+
+It reads one other plugin's collection: the `alphabet`, for the badge words.
 
 No network and no files. The one socket it listens on (`sockets.listen`) is
 bound by BranchKit on the loopback interface and needs the pairing token.

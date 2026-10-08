@@ -124,6 +124,12 @@ func (f *fakePlatform) HUDHide(branchkit.HUDHideRequest) error {
 	return nil
 }
 
+// NativeFormatDate stands in for the platform's formatting: it marks the
+// instant, so a test sees the platform was asked.
+func (f *fakePlatform) NativeFormatDate(req branchkit.NativeFormatDateRequest) (*branchkit.NativeFormatDateResponse, error) {
+	return &branchkit.NativeFormatDateResponse{Value: "formatted " + req.When}, nil
+}
+
 func (f *fakePlatform) SettingsRefresh() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

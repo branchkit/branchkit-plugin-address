@@ -10,10 +10,12 @@
   "publisher": "github:branchkit",
   "requires": {
     "privileges": [
-      "input"
+      "input",
+      "locale"
     ],
     "reasons": {
-      "privilege:input": "To type a file's address where the cursor is."
+      "privilege:input": "To type a file's address where the cursor is.",
+      "privilege:locale": "To show when Claude Code last reported your project in your own time zone and format."
     },
     "sockets": {
       "listen": [
@@ -24,7 +26,8 @@
       "uses": [
         "hud.show",
         "hud.hide",
-        "input.type_text"
+        "input.type_text",
+        "native.format_date"
       ]
     }
   },
@@ -135,6 +138,9 @@
     }
   },
   "consumes": {
+    "collections": [
+      { "name": "alphabet", "fields": ["codeword"] }
+    ],
     "events": [
       { "pattern": "_platform.input.session_boundary" }
     ]

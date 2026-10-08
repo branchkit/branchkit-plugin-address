@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/branchkit/plugin-sdk-go"
@@ -17,7 +19,10 @@ const (
 	choicesCollection = "plugin.address.choices"
 	choosingTag       = "plugin.address.choosing"
 	learnedCollection = "plugin.address.learned"
-	hudChannel        = "address"
+	// alphabetCollection is the platform's pointing deck: one vetted
+	// codeword per letter, the words every chooser badges its rows with.
+	alphabetCollection = "alphabet"
+	hudChannel         = "address"
 )
 
 // choice is an ambiguous name being chosen between.
@@ -47,9 +52,75 @@ func learnedID(cwd, spoken string) string { return cwd + "#" + spoken }
 // focused app.
 func mention(path string) string { return "@" + path + " " }
 
-// badges are the words the choices are numbered with. Nine at most, so a
-// badge is always one short word.
-var badges = []string{"one", "two", "three", "four", "five", "six", "seven", "eight", "nine"}
+// numberWords badge the choices when no alphabet is published (it is the
+// voice plugin's), and count them in what the window says.
+var numberWords = []string{"one", "two", "three", "four", "five", "six", "seven", "eight", "nine"}
+
+// deck is the words the choices are badged with: the alphabet's codewords,
+// sorted as the platform's own choosers sort them, so a badge means the
+// same word here as in every other list the person points into.
+func (h *Host) deck() []string {
+	records, err := h.plugin.ListAll(alphabetCollection)
+	if err != nil {
+		branchkit.Logf(pluginID, "read %s: %v (badging with numbers)", alphabetCollection, err)
+	}
+	seen := map[string]bool{}
+	var words []string
+	for _, rec := range records {
+		var r struct {
+			Codeword string `json:"codeword"`
+		}
+		w := ""
+		if json.Unmarshal(rec.Payload, &r) == nil {
+			w = strings.ToLower(strings.TrimSpace(r.Codeword))
+		}
+		if w != "" && !strings.Contains(w, " ") && !seen[w] {
+			seen[w] = true
+			words = append(words, w)
+		}
+	}
+	if len(words) < maxChoices {
+		return numberWords
+	}
+	sort.Strings(words)
+	return words
+}
+
+// incidentalDirs hold files that share a name with the file a person means
+// without being it: tests, fixtures, vendored and installed code.
+var incidentalDirs = map[string]bool{
+	"test": true, "tests": true, "__tests__": true, "testdata": true,
+	"fixtures": true, "test-fixtures": true, "test_fixtures": true, "__fixtures__": true,
+	"mocks": true, "__mocks__": true,
+	"vendor": true, "third_party": true, "node_modules": true,
+}
+
+func incidental(p string) bool {
+	for _, dir := range strings.Split(path.Dir(p), "/") {
+		if incidentalDirs[strings.ToLower(dir)] {
+			return true
+		}
+	}
+	return false
+}
+
+// clearWinner is the one file a name means when every other file it could
+// mean is incidental: "mission" is docs/MISSION.md, not a test fixture
+// called mission.html. The others keep their longer names, so they are
+// still sayable; only a genuine choice is asked.
+func clearWinner(paths []string) (string, bool) {
+	winner := ""
+	for _, p := range paths {
+		if incidental(p) {
+			continue
+		}
+		if winner != "" {
+			return "", false
+		}
+		winner = p
+	}
+	return winner, winner != ""
+}
 
 // cite types the address of the file `spoken` names.
 func (h *Host) cite(spoken string) error {
@@ -80,6 +151,9 @@ func (h *Host) cite(spoken string) error {
 		if p == picked {
 			return h.insert(p)
 		}
+	}
+	if p, ok := clearWinner(paths); ok {
+		return h.insert(p)
 	}
 	return h.offer(choice{cwd: cwd, spoken: spoken, paths: paths})
 }
@@ -113,8 +187,9 @@ func (h *Host) insert(path string) error {
 // the numbers the only thing heard until one is said, "cancel" is said, or
 // the hold ends.
 func (h *Host) offer(c choice) error {
-	if len(c.paths) > len(badges) {
-		c.paths = c.paths[:len(badges)]
+	badges := h.deck()
+	if n := min(len(badges), maxChoices); len(c.paths) > n {
+		c.paths = c.paths[:n]
 	}
 	entries := make([]branchkit.CollectionPutEntry, 0, len(c.paths))
 	items := make([]branchkit.OutputItem, 0, len(c.paths))
@@ -129,11 +204,15 @@ func (h *Host) offer(c choice) error {
 			return err
 		}
 		dispatch := "address.insert"
+		file := p
+		// The word to say is the title, the file beneath it: how the
+		// platform's choosers lay out a badged row.
 		items = append(items, branchkit.OutputItem{
-			ID:     badges[i],
-			Phrase: badges[i],
-			Title:  fmt.Sprintf("%d  %s", i+1, p),
-			Action: &branchkit.OutputAction{Dispatch: &dispatch, Params: params},
+			ID:       badges[i],
+			Phrase:   badges[i],
+			Title:    badges[i],
+			Subtitle: &file,
+			Action:   &branchkit.OutputAction{Dispatch: &dispatch, Params: params},
 		})
 	}
 
@@ -156,12 +235,12 @@ func (h *Host) offer(c choice) error {
 		return fmt.Errorf("enter choosing: %w", err)
 	}
 
-	footer := "say a number, or cancel"
+	footer := "say the word beside a file, or cancel"
 	doc := branchkit.OutputState{
 		Channel:  hudChannel,
 		Kind:     branchkit.OutputKindChoices,
 		Title:    "Which file?",
-		Phrase:   fmt.Sprintf("%q could be %s. Say a number.", c.spoken, countFiles(len(c.paths))),
+		Phrase:   fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths))),
 		Sections: []branchkit.OutputSection{{Items: items}},
 		Footer:   &footer,
 		Urgency:  branchkit.OutputUrgencyNotable,
@@ -202,8 +281,8 @@ func (h *Host) abandon(c *choice) {
 }
 
 func countFiles(n int) string {
-	if n < len(badges)+1 && n > 0 {
-		return badges[n-1] + " files"
+	if n < len(numberWords)+1 && n > 0 {
+		return numberWords[n-1] + " files"
 	}
 	return fmt.Sprintf("%d files", n)
 }
