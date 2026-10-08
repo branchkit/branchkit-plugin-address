@@ -68,10 +68,10 @@
   "hud_windows": [
     {
       "channel": "address",
-      "anchor": "bottom-center",
-      "width": 420,
+      "anchor": "top-center",
+      "width": 560,
       "min_height": 60,
-      "description": "The files a name could mean, numbered, while you choose"
+      "description": "The file list and the files a name could mean, each beside a word to say"
     }
   ],
   "provides": {
