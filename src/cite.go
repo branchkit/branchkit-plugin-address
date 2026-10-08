@@ -122,6 +122,65 @@ func clearWinner(paths []string) (string, bool) {
 	return winner, winner != ""
 }
 
+// maxBrowse is the most files "mention" alone lists: one alphabet word
+// each, so every badge is a single word.
+const maxBrowse = 26
+
+// browse lists the files the person most likely means, badged, for
+// "mention" said alone: the files the working tree has changed, then the
+// ones mentioned most recently. While the list is open a file's name works
+// too.
+func (h *Host) browse() error {
+	h.mu.Lock()
+	cwd := h.project.cwd
+	paths := likelyFiles(h.project.changed, h.recentIn(cwd), maxBrowse)
+	h.mu.Unlock()
+	return h.offer(choice{cwd: cwd, paths: paths})
+}
+
+// likelyFiles is changed then recent, each file once, at most n.
+func likelyFiles(changed, recent []string, n int) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, list := range [][]string{changed, recent} {
+		for _, p := range list {
+			if len(out) == n {
+				return out
+			}
+			if !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// recentIn is the recent files when they belong to project cwd. Caller
+// holds h.mu.
+func (h *Host) recentIn(cwd string) []string {
+	if h.recentCwd != cwd {
+		return nil
+	}
+	return h.recent
+}
+
+// noteRecent puts a typed file at the head of the recent list.
+func (h *Host) noteRecent(path string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.recentCwd != h.project.cwd {
+		h.recentCwd, h.recent = h.project.cwd, nil
+	}
+	list := []string{path}
+	for _, p := range h.recent {
+		if p != path && len(list) < maxBrowse {
+			list = append(list, p)
+		}
+	}
+	h.recent = list
+}
+
 // cite types the address of the file `spoken` names.
 func (h *Host) cite(spoken string) error {
 	spoken = strings.TrimSpace(spoken)
@@ -173,10 +232,13 @@ func (h *Host) insert(path string) error {
 	if err := h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: mention(path)}); err != nil {
 		return fmt.Errorf("type @%s: %w", path, err)
 	}
+	h.noteRecent(path)
 	h.mu.Lock()
 	c := h.choosing
 	h.mu.Unlock()
-	if c != nil && slices.Contains(c.paths, path) {
+	// A pick from the list "mention" alone shows answers no name, so it
+	// teaches none.
+	if c != nil && c.spoken != "" && slices.Contains(c.paths, path) {
 		h.learn(c.cwd, c.spoken, path)
 	}
 	h.closeChoices()
@@ -188,7 +250,11 @@ func (h *Host) insert(path string) error {
 // the hold ends.
 func (h *Host) offer(c choice) error {
 	badges := h.deck()
-	if n := min(len(badges), maxChoices); len(c.paths) > n {
+	limit := maxChoices
+	if c.spoken == "" {
+		limit = maxBrowse
+	}
+	if n := min(len(badges), limit); len(c.paths) > n {
 		c.paths = c.paths[:n]
 	}
 	entries := make([]branchkit.CollectionPutEntry, 0, len(c.paths))
@@ -236,12 +302,25 @@ func (h *Host) offer(c choice) error {
 	}
 
 	footer := "say the word beside a file, or cancel"
+	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
+	if c.spoken == "" {
+		footer = "say the word beside a file, or any file's name, or cancel"
+		phrase = "Files you changed or mentioned. Say the word beside one, or any file's name."
+		if len(c.paths) == 0 {
+			phrase = "No changed or recently mentioned files yet. Say any file's name."
+		}
+	}
+	// An empty list is no section: the window shows the phrase instead.
+	var sections []branchkit.OutputSection
+	if len(items) > 0 {
+		sections = []branchkit.OutputSection{{Items: items}}
+	}
 	doc := branchkit.OutputState{
 		Channel:  hudChannel,
 		Kind:     branchkit.OutputKindChoices,
 		Title:    "Which file?",
-		Phrase:   fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths))),
-		Sections: []branchkit.OutputSection{{Items: items}},
+		Phrase:   phrase,
+		Sections: sections,
 		Footer:   &footer,
 		Urgency:  branchkit.OutputUrgencyNotable,
 		Locale:   "en",

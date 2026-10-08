@@ -5,6 +5,15 @@ package main
 
 import "github.com/branchkit/plugin-sdk-go"
 
+// BrowseParams is the params shape for action "address.browse (List Likely Files)".
+type BrowseParams struct {
+}
+
+// HandleBrowse registers a typed handler for action "address.browse (List Likely Files)".
+func HandleBrowse(p *branchkit.Plugin, fn branchkit.ActionHandlerFunc) {
+	p.HandleAction("address.browse", fn)
+}
+
 // DismissParams is the params shape for action "address.dismiss (Close the File Choices)".
 type DismissParams struct {
 }

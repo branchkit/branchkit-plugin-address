@@ -49,6 +49,9 @@ type projectReport struct {
 type project struct {
 	cwd   string
 	names nameTable
+	// changed is the files the working tree has changed or added, most
+	// likely first: the head of the list "mention" alone shows.
+	changed []string
 }
 
 // fileRecord is one spoken name in the files collection.
@@ -168,7 +171,13 @@ func (h *Host) publish(rep projectReport) error {
 	}
 
 	h.mu.Lock()
-	h.project = project{cwd: rep.Cwd, names: names}
+	var likely []string
+	for _, f := range ranked {
+		if changed[f] {
+			likely = append(likely, f)
+		}
+	}
+	h.project = project{cwd: rep.Cwd, names: names, changed: likely}
 	h.published++
 	h.mu.Unlock()
 	h.queueMu.Lock()

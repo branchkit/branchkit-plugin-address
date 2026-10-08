@@ -41,6 +41,11 @@ type Host struct {
 	learned map[string]string
 	// choosing is the ambiguous name being chosen between, or nil.
 	choosing *choice
+	// recent is the files most recently typed in recentCwd's project, newest
+	// first: the rest of the list "mention" alone shows. Kept for this run
+	// only.
+	recent    []string
+	recentCwd string
 	// published counts the projects publish has installed, so a read-back
 	// that started before one does not overwrite it with older names.
 	published int

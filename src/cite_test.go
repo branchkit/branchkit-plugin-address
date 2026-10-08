@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -341,5 +342,99 @@ func TestIncidental(t *testing.T) {
 		if got := incidental(p); got != want {
 			t.Errorf("incidental(%q) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+// "mention" alone lists the changed files, then the ones mentioned lately,
+// each once, badged in alphabet order.
+func TestBrowseListsChangedThenRecent(t *testing.T) {
+	h, f := hostWith(t, nameTable{"mission": {"docs/MISSION.md"}, "plan": {"docs/PLAN.md"}})
+	h.mu.Lock()
+	h.project.changed = []string{"src/a.go", "src/b.go"}
+	h.mu.Unlock()
+	if err := h.cite("plan"); err != nil { // typed, so recent
+		t.Fatal(err)
+	}
+	if err := h.insert("src/a.go"); err != nil { // changed AND recent: listed once
+		t.Fatal(err)
+	}
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	doc := f.states[len(f.states)-1]
+	var got []string
+	for _, it := range doc.Sections[0].Items {
+		got = append(got, it.Title+"="+*it.Subtitle)
+	}
+	want := []string{"aim=src/a.go", "bus=src/b.go", "car=docs/PLAN.md"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("list = %q, want %q", got, want)
+	}
+	if !f.has(choosingTag, "singleton") || !f.has(choicesCollection, "car") {
+		t.Error("the list should open the choosing mode with its badges")
+	}
+	// A pick from the list answers no name, so it teaches none.
+	if err := h.insert("src/b.go"); err != nil {
+		t.Fatal(err)
+	}
+	if f.count(learnedCollection) != 0 {
+		t.Error("a pick from the list must not be learned as a name")
+	}
+}
+
+func TestBrowseIsCappedAtOneWordEach(t *testing.T) {
+	var changed []string
+	for i := 0; i < 40; i++ {
+		changed = append(changed, fmt.Sprintf("f%02d.go", i))
+	}
+	h, f := hostWith(t, nameTable{})
+	h.mu.Lock()
+	h.project.changed = changed
+	h.mu.Unlock()
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	// The test alphabet has 12 words: the list stops where the words do.
+	if n := f.count(choicesCollection); n != len(testDeck) {
+		t.Errorf("%d listed, want %d", n, len(testDeck))
+	}
+}
+
+// Nothing changed or mentioned yet: the window says so, and names still work.
+func TestAnEmptyBrowseSaysSo(t *testing.T) {
+	h, f := hostWith(t, nameTable{})
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	doc := f.states[len(f.states)-1]
+	if len(doc.Sections) != 0 || !strings.Contains(doc.Phrase, "Say any file's name") {
+		t.Errorf("doc = %+v", doc)
+	}
+	if !f.has(choosingTag, "singleton") {
+		t.Error("the mode stays open so a name can still be said")
+	}
+}
+
+// The recent list belongs to its project: another project starts it afresh.
+func TestRecentFollowsTheProject(t *testing.T) {
+	h, _ := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}})
+	h.noteRecent("a.go")
+	h.noteRecent("b.go")
+	h.noteRecent("a.go")
+	h.mu.Lock()
+	got := append([]string(nil), h.recentIn(testCwd)...)
+	h.project.cwd = "/other"
+	h.mu.Unlock()
+	if want := []string{"a.go", "b.go"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("recent = %q, want %q", got, want)
+	}
+	h.noteRecent("c.go")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if got := h.recentIn("/other"); !reflect.DeepEqual(got, []string{"c.go"}) {
+		t.Errorf("recent in another project = %q", got)
+	}
+	if h.recentIn(testCwd) != nil {
+		t.Error("the old project's recent files must not show in the new one")
 	}
 }

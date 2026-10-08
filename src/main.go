@@ -29,6 +29,9 @@ func main() {
 	HandleInsert(p, func(params InsertParams, _ *branchkit.OnActionRequest) (any, error) {
 		return nil, h.insert(params.Path)
 	})
+	HandleBrowse(p, func(*branchkit.OnActionRequest) (any, error) {
+		return nil, h.browse()
+	})
 	HandleDismiss(p, func(*branchkit.OnActionRequest) (any, error) {
 		h.closeChoices()
 		return nil, nil

@@ -19,9 +19,15 @@ come first; other things (branches, issues, notes) and other destinations
 | Say | Does |
 |---|---|
 | `mention <file>` | Type the file's address, `@path` and a space |
-| `mention`, then `<file>` | The same in two breaths: after "mention", only file names are heard |
-| the word beside a file (`aim`, `bus`, …) | When a name could mean several files, pick that one |
-| `cancel` | Close the choices without typing anything |
+| `mention` | List the files you changed or mentioned lately, each beside a word to say |
+| the word beside a file (`aim`, `bus`, …) | Type that file, from the list or when a name could mean several files |
+| `<file>`, while the list is open | Type that file: after "mention", file names and the list's words are all that is heard |
+| `cancel` | Close the list without typing anything |
+
+The list holds the files your working tree has changed, then the ones you
+mentioned most recently in this project (since BranchKit started), at most 26,
+so every word is one word. It is the way to a file whose name does not come
+out right: say "mention", then its word.
 
 ## How files get their names
 
@@ -112,6 +118,7 @@ path contains a space are left out, since a space ends a mention.
 |---|---|
 | `address.mention` | Type the address of the file `name` names, or offer the choices when it names several |
 | `address.insert` | Type the address of `path` |
+| `address.browse` | List the files you changed or mentioned lately |
 | `address.dismiss` | Close the choices |
 
 ## Collections
