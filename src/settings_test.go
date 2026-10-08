@@ -13,7 +13,7 @@ import (
 // Before any report the tab says so and opens the setup steps; the steps
 // carry the hook pointed at this installation's binary.
 func TestClaudeTabBeforeAnyReport(t *testing.T) {
-	t.Setenv("BRANCHKIT_PLUGIN_DIR", "/Users/x/Library/Application Support/BranchKit/plugins/address")
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", "/tmp/a folder/plugins/address")
 	h := newHost(newFakePlatform(), testLex)
 	html, err := h.renderClaudeTab(nil)
 	if err != nil {
@@ -23,7 +23,7 @@ func TestClaudeTabBeforeAnyReport(t *testing.T) {
 		"Not set up",
 		`<details class="page-more address-setup" open>`,
 		"~/.claude/settings.json",
-		`Application Support/BranchKit/plugins/address/`,
+		`/tmp/a folder/plugins/address/`,
 		"claude-hook",
 		"UserPromptSubmit",
 	} {
@@ -100,8 +100,8 @@ func TestAReportConnectsTheTab(t *testing.T) {
 // quotes, and characters the shell would expand are escaped.
 func TestHookCommandQuotesThePath(t *testing.T) {
 	for in, want := range map[string]string{
-		"/Users/x/Library/Application Support/BranchKit/plugins/address/address-plugin": `"/Users/x/Library/Application Support/BranchKit/plugins/address/address-plugin" claude-hook`,
-		"/tmp/a$b`c\"d\\e/address-plugin":                                               `"/tmp/a\$b` + "\\`" + `c\"d\\e/address-plugin" claude-hook`,
+		"/tmp/a folder/plugins/address/address-plugin": `"/tmp/a folder/plugins/address/address-plugin" claude-hook`,
+		"/tmp/a$b`c\"d\\e/address-plugin":              `"/tmp/a\$b` + "\\`" + `c\"d\\e/address-plugin" claude-hook`,
 	} {
 		if got := hookCommand(in); got != want {
 			t.Errorf("hookCommand(%q) = %s, want %s", in, got, want)
