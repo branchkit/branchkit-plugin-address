@@ -67,9 +67,7 @@ func (h *Host) deck() []string {
 	seen := map[string]bool{}
 	var words []string
 	for _, rec := range records {
-		var r struct {
-			Codeword string `json:"codeword"`
-		}
+		var r AlphabetRecord
 		w := ""
 		if json.Unmarshal(rec.Payload, &r) == nil {
 			w = strings.ToLower(strings.TrimSpace(r.Codeword))
