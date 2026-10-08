@@ -23,7 +23,7 @@ func main() {
 	// Registrars come from actions_gen.go, generated from plugin.json, so no
 	// action string is spelled here and a params type cannot drift from the
 	// manifest.
-	HandleCite(p, func(params CiteParams, _ *branchkit.OnActionRequest) (any, error) {
+	HandleMention(p, func(params MentionParams, _ *branchkit.OnActionRequest) (any, error) {
 		return nil, h.cite(params.Name)
 	})
 	HandleInsert(p, func(params InsertParams, _ *branchkit.OnActionRequest) (any, error) {
@@ -42,7 +42,7 @@ func main() {
 	// plugin's to close.
 	p.On("_platform.input.session_boundary", func(json.RawMessage) { h.closeChoices() })
 
-	// Names published before a restart answer "cite" until the next prompt
+	// Names published before a restart answer "mention" until the next prompt
 	// reports the project again; the warm-up of the word list is paid here,
 	// not on the first report.
 	p.OnReady(func() {

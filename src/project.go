@@ -25,7 +25,7 @@ import (
 const filesCollection = "address_files"
 
 // maxFiles caps how many files one project contributes. Every name is a word
-// sequence the speech engine holds while "cite" is active; past a few
+// sequence the speech engine holds while "mention" is active; past a few
 // thousand files the names of the least likely ones are not worth the
 // recognition they dilute. The most likely files are kept (rankFiles).
 const maxFiles = 5000
@@ -127,7 +127,7 @@ func (h *Host) drain() {
 	}
 }
 
-// publish names a project's files and makes those names what "cite" hears.
+// publish names a project's files and makes those names what "mention" hears.
 // A report identical to the last one published is skipped: the hook reports
 // on every prompt, and most prompts change nothing.
 func (h *Host) publish(rep projectReport) error {
@@ -218,7 +218,7 @@ func reportDigest(cwd string, files []string, changed map[string]bool) string {
 }
 
 // loadProject reads the published names back, so a restarted plugin answers
-// "cite" for the last project before the next prompt reports it again. The
+// "mention" for the last project before the next prompt reports it again. The
 // collection is the record of what was published, user-added names included.
 func (h *Host) loadProject() error {
 	h.mu.Lock()

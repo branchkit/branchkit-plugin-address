@@ -1,10 +1,10 @@
 [
   {
-    "pattern": ["cite", "<file:address_files>"],
-    "action": { "type": "address.cite", "params": { "name": "{file}" } },
+    "pattern": ["mention", "<file:address_files>"],
+    "action": { "type": "address.mention", "params": { "name": "{file}" } },
     "discovery": "exclusive",
     "category": "Addresses",
-    "description": "Type a project file's address, @path for Claude Code. Say \"cite\", then the file's name, in one breath or two."
+    "description": "Type a project file's address, @path for Claude Code. Say \"mention\", then the file's name, in one breath or two."
   },
   {
     "pattern": ["<choice:plugin.address.choices>"],

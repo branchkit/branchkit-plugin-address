@@ -5,16 +5,6 @@ package main
 
 import "github.com/branchkit/plugin-sdk-go"
 
-// CiteParams is the params shape for action "address.cite (Cite a File)".
-type CiteParams struct {
-	Name string `json:"name"`
-}
-
-// HandleCite registers a typed handler for action "address.cite (Cite a File)".
-func HandleCite(p *branchkit.Plugin, fn func(CiteParams, *branchkit.OnActionRequest) (any, error)) {
-	branchkit.HandleActionTyped(p, "address.cite", fn)
-}
-
 // DismissParams is the params shape for action "address.dismiss (Close the File Choices)".
 type DismissParams struct {
 }
@@ -32,4 +22,14 @@ type InsertParams struct {
 // HandleInsert registers a typed handler for action "address.insert (Type a File's Address)".
 func HandleInsert(p *branchkit.Plugin, fn func(InsertParams, *branchkit.OnActionRequest) (any, error)) {
 	branchkit.HandleActionTyped(p, "address.insert", fn)
+}
+
+// MentionParams is the params shape for action "address.mention (Mention a File)".
+type MentionParams struct {
+	Name string `json:"name"`
+}
+
+// HandleMention registers a typed handler for action "address.mention (Mention a File)".
+func HandleMention(p *branchkit.Plugin, fn func(MentionParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "address.mention", fn)
 }

@@ -278,7 +278,7 @@ func nameFiles(paths []string, changed map[string]bool, lex lexicon) nameTable {
 	}
 
 	// A short name several files share is ambiguous: say it and choose
-	// ("cite voice main", then which). Files are listed most likely first,
+	// ("mention voice main", then which). Files are listed most likely first,
 	// since claims were made in rank order. A generic name ("main") is never
 	// said alone, so it is never offered alone either.
 	for _, f := range files {

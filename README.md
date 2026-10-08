@@ -1,6 +1,6 @@
 # BranchKit Address
 
-Say a file's name, and its address is typed where you are writing. "cite
+Say a file's name, and its address is typed where you are writing. "mention
 mission" types `@docs/MISSION.md ` into Claude Code, which attaches the file
 to your prompt. A plugin for [BranchKit](https://github.com/branchkit), an
 accessibility plugin platform for the desktop. MIT licensed.
@@ -18,8 +18,8 @@ come first; other things (branches, issues, notes) and other destinations
 
 | Say | Does |
 |---|---|
-| `cite <file>` | Type the file's address, `@path` and a space |
-| `cite`, then `<file>` | The same in two breaths: after "cite", only file names are heard |
+| `mention <file>` | Type the file's address, `@path` and a space |
+| `mention`, then `<file>` | The same in two breaths: after "mention", only file names are heard |
 | a number (`one` … `nine`) | When a name could mean several files, pick the one with that badge |
 | `cancel` | Close the choices without typing anything |
 
@@ -101,7 +101,7 @@ path contains a space are left out, since a space ends a mention.
 
 | Action | Does |
 |---|---|
-| `address.cite` | Type the address of the file `name` names, or offer the choices when it names several |
+| `address.mention` | Type the address of the file `name` names, or offer the choices when it names several |
 | `address.insert` | Type the address of `path` |
 | `address.dismiss` | Close the choices |
 

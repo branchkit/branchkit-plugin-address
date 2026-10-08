@@ -16,7 +16,7 @@ import (
 // The Claude Code tab: whether the hook has reported a project, and how to
 // add it. The hook is the only way this plugin learns a project's files, and
 // adding it means editing Claude Code's settings by hand, so the steps live
-// where a person looks when "cite" hears nothing: closed once it works, open
+// where a person looks when "mention" hears nothing: closed once it works, open
 // until it has.
 
 // hookStatus is how far the hook has got.
@@ -149,7 +149,7 @@ func hookSettings(command string) (string, error) {
 var claudeTab = template.Must(template.New("claude").Parse(`
 <div class="page-head">
 	<h2 class="page-title">Claude Code</h2>
-	<p class="page-lede">"Cite" names the files of the project you are working on in Claude Code. Claude Code tells BranchKit which project that is through a hook, added once to its settings.</p>
+	<p class="page-lede">"Mention" names the files of the project you are working on in Claude Code. Claude Code tells BranchKit which project that is through a hook, added once to its settings.</p>
 </div>
 <bk-table columns="140px 1fr">
 	<div class="settings-row">
@@ -157,7 +157,7 @@ var claudeTab = template.Must(template.New("claude").Parse(`
 		<div class="value">
 			{{- if eq .Status 2}}<span class="badge badge-running">Connected</span> Claude Code reported this project at {{.Heard}}.
 			{{- else if eq .Status 1}}<span class="badge badge-meta">Waiting</span> These names are from an earlier session. They refresh the next time you send a prompt in Claude Code.
-			{{- else}}<span class="badge badge-restart">Not set up</span> Claude Code has not reported a project yet, so "cite" has no files to name.
+			{{- else}}<span class="badge badge-restart">Not set up</span> Claude Code has not reported a project yet, so "mention" has no files to name.
 			{{- end}}
 		</div>
 	</div>
