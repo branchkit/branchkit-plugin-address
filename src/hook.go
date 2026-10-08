@@ -60,7 +60,10 @@ func claudeHook(ctx context.Context, stdin io.Reader) error {
 		return err
 	}
 	if rep == nil {
-		return nil // not a git project: nothing to name
+		// Not a git project: nothing to name, and the previous project's
+		// names must not answer here (their paths are relative to another
+		// folder). An empty report says so.
+		rep = &projectReport{Cwd: in.Cwd}
 	}
 	rep.SessionID = in.SessionID
 	rep.Event = in.HookEventName

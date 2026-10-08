@@ -252,6 +252,12 @@ func (h *Host) loadProject() error {
 	// A publish that landed during the read installed newer names than the
 	// read may have seen; keep those.
 	if h.published == before {
+		// The collection holds names, not which files changed: keep the
+		// changed list the last report gave for this same project, or the
+		// "mention" list would lose its head until the next prompt.
+		if p.cwd == h.project.cwd {
+			p.changed = h.project.changed
+		}
 		h.project = p
 	}
 	h.mu.Unlock()

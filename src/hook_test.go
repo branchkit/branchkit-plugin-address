@@ -189,3 +189,32 @@ func TestListProjectLeavesOutDeletedFiles(t *testing.T) {
 		}
 	}
 }
+
+// Moving to a folder that is not a git project clears the previous
+// project's names: their paths are relative to another folder.
+func TestTheHookOutsideGitClearsTheOldProject(t *testing.T) {
+	repo := gitRepo(t)
+	f := newFakePlatform()
+	h := newHost(f, englishLexicon())
+	pluginDir, _ := pluginServer(t, h)
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", pluginDir)
+
+	send := func(cwd string) {
+		t.Helper()
+		in, _ := json.Marshal(hookInput{Cwd: cwd, HookEventName: "UserPromptSubmit"})
+		if err := claudeHook(context.Background(), bytes.NewReader(in)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send(repo)
+	waitFor(t, func() bool { return f.has(filesCollection, "mission") })
+	elsewhere := t.TempDir()
+	send(elsewhere)
+	waitFor(t, func() bool { return f.count(filesCollection) == 0 })
+	if err := h.cite("mission"); err == nil {
+		t.Error("the old project's name must not answer in a folder outside git")
+	}
+	if len(f.typedText()) != 0 {
+		t.Errorf("typed %q", f.typedText())
+	}
+}

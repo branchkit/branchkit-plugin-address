@@ -242,3 +242,19 @@ func TestALoadDuringAPublishKeepsTheNewProject(t *testing.T) {
 		t.Errorf("lookup(mission) = %q in %q; the stale read replaced the new project", paths, cwd)
 	}
 }
+
+// Reading the names back (a miss in cite) keeps the changed files the last
+// report gave for the same project: they head the "mention" list.
+func TestALoadKeepsTheChangedFiles(t *testing.T) {
+	f := newFakePlatform()
+	h := newHost(f, testLex)
+	if err := h.publish(projectReport{Cwd: testCwd, Files: []string{"docs/MISSION.md", "docs/PLAN.md"}, Changed: []string{"docs/PLAN.md"}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = h.cite("not a name") // misses, so reads the collection back
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !reflect.DeepEqual(h.project.changed, []string{"docs/PLAN.md"}) {
+		t.Errorf("changed = %q after a read-back", h.project.changed)
+	}
+}
