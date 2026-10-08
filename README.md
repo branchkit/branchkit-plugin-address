@@ -130,8 +130,11 @@ path contains a space are left out, since a space ends a mention.
 | `plugin.address.choices` | While you choose: each badge and its file. Cleared when the hold ends |
 | `plugin.address.choosing` | The exclusive mode that makes only the badges and "cancel" heard while you choose |
 
-A name you add to `address_files` yourself works like a published one until
-the next project report replaces the published names.
+`address_files` is rebuilt from git on every report, so Settings shows it as
+a one-line summary rather than an editable table: an edit there would be gone
+at your next prompt. What you edit is `plugin.address.learned`, your answers.
+A name another program writes to `address_files` still works until the next
+report replaces the published names.
 
 ## Permissions
 

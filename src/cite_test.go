@@ -68,7 +68,7 @@ func TestCitingAnUnknownNameSaysSoAndTypesNothing(t *testing.T) {
 	}
 }
 
-// A name the person added in the Collections page is in the collection, not
+// A name something else wrote to the collection is in the collection, not
 // in what was published; cite reads it back.
 func TestCitingANameThePersonAddedReadsItBack(t *testing.T) {
 	h, f := hostWith(t, nameTable{"mission": {"docs/MISSION.md"}})

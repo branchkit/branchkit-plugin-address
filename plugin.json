@@ -80,6 +80,7 @@
         "id_strategy": { "type": "by_field", "field": "spoken" },
         "preset": "named_entities",
         "durable": true,
+        "ui_render": "summary",
         "label": "Files you can mention",
         "fields": [
           { "key": "spoken", "field_type": "string", "label": "Spoken name", "required": true },

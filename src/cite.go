@@ -186,8 +186,8 @@ func (h *Host) cite(spoken string) error {
 	spoken = strings.TrimSpace(spoken)
 	paths, cwd := h.lookup(spoken)
 	if len(paths) == 0 {
-		// A name the person added in the Collections page is in the
-		// collection but not in what this plugin published: read it back.
+		// A name something else wrote to the collection (a script, the
+		// CLI) is not in what this plugin published: read it back.
 		if err := h.loadProject(); err != nil {
 			branchkit.Logf(pluginID, "cite %q: %v", spoken, err)
 		}
