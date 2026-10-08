@@ -20,8 +20,6 @@ type platform interface {
 	InputTypeText(branchkit.InputTypeTextRequest) error
 	OutputState(branchkit.OutputStateRequest) (*branchkit.OutputStateResponse, error)
 	OutputClear(branchkit.OutputClearRequest) (*branchkit.OutputClearResponse, error)
-	HUDShow(branchkit.HUDShowRequest) error
-	HUDHide(branchkit.HUDHideRequest) error
 	SettingsRefresh() error
 	NativeFormatDate(branchkit.NativeFormatDateRequest) (*branchkit.NativeFormatDateResponse, error)
 }

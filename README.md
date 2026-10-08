@@ -74,7 +74,9 @@ Otherwise saying it shows the files, the most likely first, each badged with
 a word from BranchKit's alphabet (the same words browser hints and every
 other list use). Say the word (in the same hold) and that file's address is
 typed. Without the alphabet (it is published by the voice plugin) the badges
-are numbers. Your answer is remembered: in that project, the name means that
+are numbers. The list is a card at the top centre of the screen, drawn by
+BranchKit; you can also click a file in it, or close it with its close
+button. Your answer is remembered: in that project, the name means that
 file from now on. Answers are records in the `plugin.address.learned`
 collection, where you can see them and delete one to be asked again.
 

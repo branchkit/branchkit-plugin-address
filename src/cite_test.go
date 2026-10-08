@@ -52,7 +52,7 @@ func TestCitingAUniqueNameTypesItsMention(t *testing.T) {
 	if got := f.typedText(); !reflect.DeepEqual(got, []string{"@docs/MISSION.md "}) {
 		t.Errorf("typed %q", got)
 	}
-	if f.shown != 0 {
+	if len(f.states) != 0 {
 		t.Error("a unique name must not open the choices")
 	}
 }
@@ -103,8 +103,8 @@ func TestCitingAnAmbiguousNameOffersBadgedChoices(t *testing.T) {
 	if !f.has(choosingTag, "singleton") {
 		t.Error("the choosing gate should be set")
 	}
-	if f.shown != 1 || len(f.states) != 1 {
-		t.Fatalf("shown %d, states %d", f.shown, len(f.states))
+	if len(f.states) != 1 {
+		t.Fatalf("states %d", len(f.states))
 	}
 	doc := f.states[0]
 	if doc.Channel != hudChannel || doc.Kind != "choices" || len(doc.Sections) != 1 || len(doc.Sections[0].Items) != 2 {
@@ -156,8 +156,8 @@ func TestPickingTypesTheFileAndIsRemembered(t *testing.T) {
 	if f.has(choosingTag, "singleton") || f.count(choicesCollection) != 0 {
 		t.Error("picking must close the choosing gate and the badges")
 	}
-	if f.cleared != 1 || f.hidden != 1 {
-		t.Errorf("cleared %d hidden %d, want the window closed", f.cleared, f.hidden)
+	if f.cleared != 1 {
+		t.Errorf("cleared %d, want the card cleared", f.cleared)
 	}
 	if !f.has(learnedCollection, learnedID(testCwd, "voice main")) {
 		t.Fatal("the answer should be recorded where the person can see it")
@@ -169,7 +169,7 @@ func TestPickingTypesTheFileAndIsRemembered(t *testing.T) {
 	if got := f.typedText(); len(got) != 2 || got[1] != "@voice/stages/a/main.rs " {
 		t.Errorf("second cite typed %q, want the remembered file", got)
 	}
-	if f.shown != 1 {
+	if len(f.states) != 1 {
 		t.Error("a remembered answer must not ask again")
 	}
 }
@@ -186,8 +186,8 @@ func TestDeletingAnAnswerAsksAgain(t *testing.T) {
 	if err := h.cite("notes"); err != nil {
 		t.Fatal(err)
 	}
-	if f.shown != 2 {
-		t.Errorf("shown %d times, want the choice offered again", f.shown)
+	if len(f.states) != 2 {
+		t.Errorf("shown %d times, want the choice offered again", len(f.states))
 	}
 }
 
@@ -201,7 +201,7 @@ func TestAnAnswerIsPerProject(t *testing.T) {
 	if err := h.cite("notes"); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.typedText()) != 0 || f.shown != 1 {
+	if len(f.typedText()) != 0 || len(f.states) != 1 {
 		t.Error("another project's answer must not choose here")
 	}
 }
@@ -223,16 +223,16 @@ func TestDismissClosesWithoutTyping(t *testing.T) {
 	h, f := hostWith(t, nameTable{"notes": {"a/notes.md", "b/notes.md"}})
 	_ = h.cite("notes")
 	h.closeChoices()
-	if len(f.typedText()) != 0 || f.has(choosingTag, "singleton") || f.hidden != 1 {
-		t.Errorf("typed %q, gate %v, hidden %d", f.typedText(), f.has(choosingTag, "singleton"), f.hidden)
+	if len(f.typedText()) != 0 || f.has(choosingTag, "singleton") || f.cleared != 1 {
+		t.Errorf("typed %q, gate %v, hidden %d", f.typedText(), f.has(choosingTag, "singleton"), f.cleared)
 	}
 	if f.count(learnedCollection) != 0 {
 		t.Error("cancelling must not teach anything")
 	}
 	// Closing again (the hold ending after a cancel) does nothing more.
 	h.closeChoices()
-	if f.hidden != 1 {
-		t.Errorf("hidden %d, want 1", f.hidden)
+	if f.cleared != 1 {
+		t.Errorf("hidden %d, want 1", f.cleared)
 	}
 }
 
@@ -274,7 +274,7 @@ func TestAHoldEndingMidOfferLeavesNothingOpen(t *testing.T) {
 	if f.has(choosingTag, "singleton") || f.count(choicesCollection) != 0 {
 		t.Error("the gate or the badges outlived the hold")
 	}
-	if f.hidden == 0 {
+	if f.cleared == 0 {
 		t.Error("the window outlived the hold")
 	}
 	h.mu.Lock()
@@ -312,7 +312,7 @@ func TestAClearWinnerIsTypedWithoutAsking(t *testing.T) {
 	if got := f.typedText(); !reflect.DeepEqual(got, []string{"@docs/MISSION.md "}) {
 		t.Errorf("typed %q", got)
 	}
-	if f.shown != 0 || f.count(learnedCollection) != 0 {
+	if len(f.states) != 0 || f.count(learnedCollection) != 0 {
 		t.Error("a clear winner neither asks nor teaches")
 	}
 }
@@ -323,8 +323,8 @@ func TestTwoRealCandidatesStillAsk(t *testing.T) {
 	if err := h.cite("notes"); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.typedText()) != 0 || f.shown != 1 {
-		t.Errorf("typed %q, shown %d", f.typedText(), f.shown)
+	if len(f.typedText()) != 0 || len(f.states) != 1 {
+		t.Errorf("typed %q, shown %d", f.typedText(), len(f.states))
 	}
 }
 

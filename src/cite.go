@@ -327,9 +327,6 @@ func (h *Host) offer(c choice) error {
 	if _, err := h.plugin.OutputState(branchkit.OutputStateRequest{State: doc}); err != nil {
 		branchkit.Logf(pluginID, "choices output.state: %v", err)
 	}
-	if err := h.plugin.HUDShow(branchkit.HUDShowRequest{Channel: hudChannel}); err != nil {
-		branchkit.Logf(pluginID, "choices show: %v", err)
-	}
 	// Closed while it was being written: the close cleared what existed
 	// then, and the writes since put the gate and the window back. Clear
 	// them again.
@@ -388,9 +385,6 @@ func (h *Host) clearChoices() {
 	}
 	if _, err := h.plugin.OutputClear(branchkit.OutputClearRequest{Channel: hudChannel}); err != nil {
 		branchkit.Logf(pluginID, "choices clear: %v", err)
-	}
-	if err := h.plugin.HUDHide(branchkit.HUDHideRequest{Channel: hudChannel}); err != nil {
-		branchkit.Logf(pluginID, "choices hide: %v", err)
 	}
 }
 

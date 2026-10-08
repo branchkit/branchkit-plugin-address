@@ -24,8 +24,6 @@
     },
     "capabilities": {
       "uses": [
-        "hud.show",
-        "hud.hide",
         "input.type_text",
         "native.format_date"
       ]
@@ -65,14 +63,8 @@
       "consequence": "reversible"
     }
   },
-  "hud_windows": [
-    {
-      "channel": "address",
-      "anchor": "top-center",
-      "width": 560,
-      "min_height": 60,
-      "description": "The file list and the files a name could mean, each beside a word to say"
-    }
+  "hud_cards": [
+    { "channel": "address", "description": "The file list and the files a name could mean, each beside a word to say" }
   ],
   "provides": {
     "collections": {

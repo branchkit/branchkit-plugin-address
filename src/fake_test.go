@@ -16,8 +16,6 @@ type fakePlatform struct {
 	typed       []string
 	states      []branchkit.OutputState
 	cleared     int
-	shown       int
-	hidden      int
 	replaces    int
 	refreshes   int
 	typeErr     error
@@ -108,20 +106,6 @@ func (f *fakePlatform) OutputClear(branchkit.OutputClearRequest) (*branchkit.Out
 	defer f.mu.Unlock()
 	f.cleared++
 	return &branchkit.OutputClearResponse{Ok: true}, nil
-}
-
-func (f *fakePlatform) HUDShow(branchkit.HUDShowRequest) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.shown++
-	return nil
-}
-
-func (f *fakePlatform) HUDHide(branchkit.HUDHideRequest) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.hidden++
-	return nil
 }
 
 // NativeFormatDate stands in for the platform's formatting: it marks the
