@@ -111,11 +111,37 @@ func listProject(ctx context.Context, cwd string) (*projectReport, error) {
 	// the removal as a change), so without this a moved or deleted file
 	// would be named, and ranked first.
 	deleted, _ := git("ls-files", "-z", "--deleted")
-	return &projectReport{
-		Cwd:     cwd,
-		Files:   append(without(tracked, deleted), added...),
-		Changed: append(without(modified, deleted), added...),
-	}, nil
+	files, changed := capReport(append(without(tracked, deleted), added...), append(without(modified, deleted), added...))
+	return &projectReport{Cwd: cwd, Files: files, Changed: changed}, nil
+}
+
+// capReport keeps the maxFiles most likely mentionable files, and the
+// changed ones among them, so the report fits the plugin's body limit
+// however large the repository: without it a Chromium-sized tree was refused
+// whole, and the previous project's names stayed in place. The plugin ranks
+// the same way, so capping here loses nothing it would have kept.
+func capReport(files, changed []string) ([]string, []string) {
+	isChanged := make(map[string]bool, len(changed))
+	for _, p := range changed {
+		isChanged[p] = true
+	}
+	var ok []string
+	for _, p := range files {
+		if mentionable(p) {
+			ok = append(ok, p)
+		}
+	}
+	ranked := rankFiles(ok, isChanged)
+	if len(ranked) > maxFiles {
+		ranked = ranked[:maxFiles]
+	}
+	var kept []string
+	for _, p := range ranked {
+		if isChanged[p] {
+			kept = append(kept, p)
+		}
+	}
+	return ranked, kept
 }
 
 // without returns paths minus those in drop.

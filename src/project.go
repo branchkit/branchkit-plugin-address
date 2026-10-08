@@ -30,7 +30,8 @@ const filesCollection = "address_files"
 // recognition they dilute. The most likely files are kept (rankFiles).
 const maxFiles = 5000
 
-// maxReportBytes bounds a report's body: 5000 paths of a few hundred bytes.
+// maxReportBytes bounds a report's body. The hook sends at most maxFiles
+// paths (capReport), each a few hundred bytes at most.
 const maxReportBytes = 16 << 20
 
 // projectReport is what the hook sends: the folder Claude Code runs in and

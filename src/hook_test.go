@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -216,5 +217,35 @@ func TestTheHookOutsideGitClearsTheOldProject(t *testing.T) {
 	}
 	if len(f.typedText()) != 0 {
 		t.Errorf("typed %q", f.typedText())
+	}
+}
+
+// A repository far past maxFiles still reports: the hook keeps the most
+// likely files (changed first, then nearest the root), and the body fits.
+func TestALargeRepositoryReportFitsTheLimit(t *testing.T) {
+	var files []string
+	for i := 0; i < 3*maxFiles; i++ {
+		files = append(files, fmt.Sprintf("third_party/chromium/src/deep/path/component_%06d/file_%06d.cc", i, i))
+	}
+	files = append(files, "docs/MISSION.md", "bad path.md")
+	changed := []string{"third_party/chromium/src/deep/path/component_000007/file_000007.cc"}
+	kept, keptChanged := capReport(files, changed)
+	if len(kept) != maxFiles {
+		t.Fatalf("kept %d files, want %d", len(kept), maxFiles)
+	}
+	if kept[0] != changed[0] || kept[1] != "docs/MISSION.md" {
+		t.Errorf("head = %q, want the changed file, then the shallowest", kept[:2])
+	}
+	if !reflect.DeepEqual(keptChanged, changed) {
+		t.Errorf("changed = %q", keptChanged)
+	}
+	for _, p := range kept {
+		if p == "bad path.md" {
+			t.Error("an unmentionable path was sent")
+		}
+	}
+	body, _ := json.Marshal(projectReport{Cwd: "/r", Files: kept, Changed: keptChanged})
+	if len(body) > maxReportBytes {
+		t.Errorf("body %d bytes exceeds the plugin's %d", len(body), maxReportBytes)
 	}
 }
