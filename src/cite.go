@@ -302,8 +302,12 @@ func (h *Host) offer(c choice) error {
 	footer := "say the word beside a file, or cancel"
 	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
 	if c.spoken == "" {
-		footer = "say the word beside a file, or any file's name, or pick one"
-		phrase = "Files you changed or mentioned. Say the word beside one, or any file's name."
+		// The badges are heard only during the hold that opened the list;
+		// the list stays after it, for the pointer, the keys or a switch.
+		// One text true for both, so nothing is redrawn at the hold's end
+		// (a redraw would bring back a list the person had closed).
+		footer = "while you hold the key, say the word beside a file; or pick one"
+		phrase = "Files you changed or mentioned. While you hold the key, say the word beside one or any file's name; or pick one."
 		if len(c.paths) == 0 {
 			phrase = "No changed or recently mentioned files yet. Say any file's name."
 		}
