@@ -8,9 +8,9 @@
   {
     "pattern": ["mention"],
     "action": { "type": "address.browse" },
-    "sets_tags": ["plugin.address.browsing"],
+    "sets_tags": ["plugin.address.choosing"],
     "category": "Addresses",
-    "description": "List the files you changed or mentioned lately, each with a word to say. The list stays until you pick a file or close it."
+    "description": "List the files you changed or mentioned lately, each with a word to say. The list stays until you pick a file or close it: in a later hold, say \"pick\" and its word."
   },
   {
     "pattern": ["<file:address_files>"],
@@ -29,12 +29,20 @@
     "description": "Pick the file whose badge word you say, when a name could mean several."
   },
   {
-    "pattern": ["<choice:plugin.address.choices>"],
+    "pattern": ["pick", "<choice:plugin.address.choices>"],
     "action": { "type": "address.insert", "params": { "path": "{choice}" } },
     "requires_tags": ["plugin.address.browsing"],
     "clears_tags": ["plugin.address.browsing"],
     "category": "Addresses",
-    "description": "Pick the file whose badge word you say, from the list \"mention\" opened."
+    "description": "Pick a file from the list \"mention\" opened, by \"pick\" and its word. The word needs \"pick\" in front: alone, alphabet words belong to spelling and link hints."
+  },
+  {
+    "pattern": ["pick", "<choice:plugin.address.choices>"],
+    "action": { "type": "address.insert", "params": { "path": "{choice}" } },
+    "requires_tags": ["plugin.address.choosing"],
+    "clears_tags": ["plugin.address.choosing"],
+    "category": "Addresses",
+    "description": "Pick a file by \"pick\" and its word, in the hold the list opened in."
   },
   {
     "pattern": ["cancel"],

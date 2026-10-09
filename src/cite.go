@@ -296,8 +296,10 @@ func (h *Host) offer(c choice) error {
 		h.abandon(&c)
 		return fmt.Errorf("publish choices: %w", err)
 	}
-	// "Which file?" is exclusive and lasts the hold; the list "mention"
-	// opens adds to what can be said, in every hold until it closes.
+	// "Which file?" is exclusive and lasts the hold. The list "mention"
+	// opens adds "pick <word>" and "cancel" to what can be said, in every
+	// hold until it closes; its own hold's exclusive gate is the "mention"
+	// command's (sets_tags), which the platform fences to that hold.
 	gate := choosingTag
 	if c.spoken == "" {
 		gate = browsingTag
@@ -310,8 +312,8 @@ func (h *Host) offer(c choice) error {
 	footer := "say the word beside a file, or cancel"
 	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
 	if c.spoken == "" {
-		footer = "say the word beside a file, or cancel; or pick one"
-		phrase = "Files you changed or mentioned. Say the word beside one, or pick it."
+		footer = "say \"pick\" and the word beside a file, or \"cancel\""
+		phrase = "Files you changed or mentioned. Say \"pick\" and the word beside one, or choose it."
 		if len(c.paths) == 0 {
 			phrase = "No changed or recently mentioned files yet. Say \"mention\" and a file's name."
 		}
