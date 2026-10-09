@@ -32,7 +32,6 @@
     "pattern": ["pick", "<choice:plugin.address.choices>"],
     "action": { "type": "address.insert", "params": { "path": "{choice}" } },
     "requires_tags": ["plugin.address.browsing"],
-    "clears_tags": ["plugin.address.browsing"],
     "category": "Addresses",
     "description": "Pick a file from the list \"mention\" opened, by \"pick\" and its word. The word needs \"pick\" in front: alone, alphabet words belong to spelling and link hints."
   },
@@ -48,7 +47,6 @@
     "pattern": ["cancel"],
     "action": { "type": "address.dismiss" },
     "requires_tags": ["plugin.address.browsing"],
-    "clears_tags": ["plugin.address.browsing"],
     "category": "Addresses",
     "description": "Close the list \"mention\" opened without typing anything."
   },
