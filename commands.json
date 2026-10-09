@@ -8,9 +8,9 @@
   {
     "pattern": ["mention"],
     "action": { "type": "address.browse" },
-    "sets_tags": ["plugin.address.choosing"],
+    "sets_tags": ["plugin.address.browsing"],
     "category": "Addresses",
-    "description": "List the files you changed or mentioned lately, each with a word to say. While the list is open, any file's name works too."
+    "description": "List the files you changed or mentioned lately, each with a word to say. The list stays until you pick a file or close it."
   },
   {
     "pattern": ["<file:address_files>"],
@@ -18,7 +18,7 @@
     "requires_tags": ["plugin.address.choosing"],
     "clears_tags": ["plugin.address.choosing"],
     "category": "Addresses",
-    "description": "Type the file whose name you say, while the file list is open."
+    "description": "Type the file whose name you say, while choosing which file an ambiguous name meant."
   },
   {
     "pattern": ["<choice:plugin.address.choices>"],
@@ -26,7 +26,23 @@
     "requires_tags": ["plugin.address.choosing"],
     "clears_tags": ["plugin.address.choosing"],
     "category": "Addresses",
-    "description": "Pick the file whose badge word you say, from the file list or when a name could mean several."
+    "description": "Pick the file whose badge word you say, when a name could mean several."
+  },
+  {
+    "pattern": ["<choice:plugin.address.choices>"],
+    "action": { "type": "address.insert", "params": { "path": "{choice}" } },
+    "requires_tags": ["plugin.address.browsing"],
+    "clears_tags": ["plugin.address.browsing"],
+    "category": "Addresses",
+    "description": "Pick the file whose badge word you say, from the list \"mention\" opened."
+  },
+  {
+    "pattern": ["cancel"],
+    "action": { "type": "address.dismiss" },
+    "requires_tags": ["plugin.address.browsing"],
+    "clears_tags": ["plugin.address.browsing"],
+    "category": "Addresses",
+    "description": "Close the list \"mention\" opened without typing anything."
   },
   {
     "pattern": ["cancel"],

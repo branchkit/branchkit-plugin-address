@@ -64,7 +64,7 @@
     }
   },
   "hud_cards": [
-    { "channel": "address", "description": "The file list and the files a name could mean, each beside a word to say" }
+    { "channel": "address", "on_close": "address.dismiss", "description": "The file list and the files a name could mean, each beside a word to say" }
   ],
   "provides": {
     "collections": {
@@ -94,16 +94,12 @@
           { "key": "codeword", "field_type": "string", "label": "Badge" },
           { "key": "path", "field_type": "string", "label": "File" }
         ],
-        "lifecycle": {
-          "type": "clear_on_event",
-          "events": ["_platform.input.session_boundary"]
-        },
         "feeds_matching": {
           "type": "as_named_entities",
           "key_field": "codeword",
           "value_field": "path"
         },
-        "description": "While you choose which file an ambiguous name meant: each badge number and the file it picks. Cleared when the hold ends."
+        "description": "The files on the open list, each beside the word that picks it: the list \"mention\" opens, or the files an ambiguous name could mean. Cleared when the list closes."
       },
       "plugin.address.choosing": {
         "preset": "tag",
@@ -118,7 +114,16 @@
           "type": "as_gates",
           "scoped": true
         },
-        "description": "Choosing which file an ambiguous name meant. Exclusive, so only the badge numbers and \"cancel\" are heard until you pick or the hold ends."
+        "description": "Choosing which file an ambiguous name meant. Exclusive, so only the badge words and \"cancel\" are heard until you pick or the hold ends."
+      },
+      "plugin.address.browsing": {
+        "preset": "tag",
+        "writers": "introducer_only",
+        "fields": [],
+        "feeds_matching": {
+          "type": "as_gates"
+        },
+        "description": "The list \"mention\" opens is on screen. Adds its badge words and \"cancel\" to what you can say, in every hold until you pick a file or close the list; everything else still works."
       },
       "plugin.address.learned": {
         "preset": "data",

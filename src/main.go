@@ -40,10 +40,10 @@ func main() {
 	p.SettingsCSS(settingsCSS)
 	p.SettingsTab("claude_code", h.renderClaudeTab)
 
-	// The gate and the badges last one hold: they clear themselves when it
-	// ends (manifest lifecycle). "Which file?" for a name ends with them;
-	// the list "mention" alone opens stays until a file is picked or the
-	// list is closed, for the pointer, the keys or a switch.
+	// "Which file?" for a name lasts the hold (its exclusive gate clears
+	// itself then, manifest lifecycle). The list "mention" alone opens stays
+	// until a file is picked or the list is closed: by "cancel", by the
+	// card's close (the manifest's on_close), by the pointer, keys or switch.
 	p.On("_platform.input.session_boundary", func(json.RawMessage) { h.holdEnded() })
 
 	// Names published before a restart answer "mention" until the next prompt

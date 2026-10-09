@@ -18,6 +18,7 @@ import (
 const (
 	choicesCollection = "plugin.address.choices"
 	choosingTag       = "plugin.address.choosing"
+	browsingTag       = "plugin.address.browsing"
 	learnedCollection = "plugin.address.learned"
 	// alphabetCollection is the platform's pointing deck: one vetted
 	// codeword per letter, the words every chooser badges its rows with.
@@ -243,9 +244,10 @@ func (h *Host) insert(path string) error {
 	return nil
 }
 
-// offer shows the files an ambiguous name could mean, numbered, and makes
-// the numbers the only thing heard until one is said, "cancel" is said, or
-// the hold ends.
+// offer shows a list of files, each beside a badge word. For an ambiguous
+// name the badges are the only thing heard until one is said, "cancel" is
+// said, or the hold ends; for the list "mention" opens they are heard
+// beside everything else until a pick or a close.
 func (h *Host) offer(c choice) error {
 	badges := h.deck()
 	limit := maxChoices
@@ -294,7 +296,13 @@ func (h *Host) offer(c choice) error {
 		h.abandon(&c)
 		return fmt.Errorf("publish choices: %w", err)
 	}
-	if err := h.plugin.Put(choosingTag, "singleton", struct{}{}); err != nil {
+	// "Which file?" is exclusive and lasts the hold; the list "mention"
+	// opens adds to what can be said, in every hold until it closes.
+	gate := choosingTag
+	if c.spoken == "" {
+		gate = browsingTag
+	}
+	if err := h.plugin.Put(gate, "singleton", struct{}{}); err != nil {
 		h.abandon(&c)
 		return fmt.Errorf("enter choosing: %w", err)
 	}
@@ -302,14 +310,10 @@ func (h *Host) offer(c choice) error {
 	footer := "say the word beside a file, or cancel"
 	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
 	if c.spoken == "" {
-		// The badges are heard only during the hold that opened the list;
-		// the list stays after it, for the pointer, the keys or a switch.
-		// One text true for both, so nothing is redrawn at the hold's end
-		// (a redraw would bring back a list the person had closed).
-		footer = "while you hold the key, say the word beside a file; or pick one"
-		phrase = "Files you changed or mentioned. While you hold the key, say the word beside one or any file's name; or pick one."
+		footer = "say the word beside a file, or cancel; or pick one"
+		phrase = "Files you changed or mentioned. Say the word beside one, or pick it."
 		if len(c.paths) == 0 {
-			phrase = "No changed or recently mentioned files yet. Say any file's name."
+			phrase = "No changed or recently mentioned files yet. Say \"mention\" and a file's name."
 		}
 	}
 	// An empty list is no section: the window shows the phrase instead.
@@ -392,8 +396,10 @@ func (h *Host) closeChoices() {
 
 // clearChoices removes the gate, the badges and the window.
 func (h *Host) clearChoices() {
-	if _, err := h.plugin.Delete(choosingTag, "singleton"); err != nil {
-		branchkit.Logf(pluginID, "leave choosing: %v", err)
+	for _, gate := range []string{choosingTag, browsingTag} {
+		if _, err := h.plugin.Delete(gate, "singleton"); err != nil {
+			branchkit.Logf(pluginID, "leave %s: %v", gate, err)
+		}
 	}
 	if _, err := h.plugin.Replace(choicesCollection, nil, branchkit.ScopeCollection()); err != nil {
 		branchkit.Logf(pluginID, "clear choices: %v", err)

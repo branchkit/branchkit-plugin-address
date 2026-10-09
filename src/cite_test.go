@@ -370,8 +370,8 @@ func TestBrowseListsChangedThenRecent(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("list = %q, want %q", got, want)
 	}
-	if !f.has(choosingTag, "singleton") || !f.has(choicesCollection, "car") {
-		t.Error("the list should open the choosing mode with its badges")
+	if !f.has(browsingTag, "singleton") || f.has(choosingTag, "singleton") || !f.has(choicesCollection, "car") {
+		t.Error("the list should add its badges beside everything else, not open the exclusive mode")
 	}
 	// A pick from the list answers no name, so it teaches none.
 	if err := h.insert("src/b.go"); err != nil {
@@ -407,11 +407,8 @@ func TestAnEmptyBrowseSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := f.states[len(f.states)-1]
-	if len(doc.Sections) != 0 || !strings.Contains(doc.Phrase, "Say any file's name") {
+	if len(doc.Sections) != 0 || !strings.Contains(doc.Phrase, "a file's name") {
 		t.Errorf("doc = %+v", doc)
-	}
-	if !f.has(choosingTag, "singleton") {
-		t.Error("the mode stays open so a name can still be said")
 	}
 }
 
@@ -450,8 +447,8 @@ func TestTheListOutlivesTheHoldAndWhichFileDoesNot(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.holdEnded()
-	if f.cleared != 0 {
-		t.Fatalf("the list was closed at the hold's end (%d clears)", f.cleared)
+	if f.cleared != 0 || !f.has(browsingTag, "singleton") {
+		t.Fatalf("the list or its badges closed at the hold's end (%d clears)", f.cleared)
 	}
 	if err := h.insert("src/a.go"); err != nil { // picked later, by pointer
 		t.Fatal(err)
