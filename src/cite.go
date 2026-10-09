@@ -302,7 +302,7 @@ func (h *Host) offer(c choice) error {
 	footer := "say the word beside a file, or cancel"
 	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
 	if c.spoken == "" {
-		footer = "say the word beside a file, or any file's name, or cancel"
+		footer = "say the word beside a file, or any file's name, or pick one"
 		phrase = "Files you changed or mentioned. Say the word beside one, or any file's name."
 		if len(c.paths) == 0 {
 			phrase = "No changed or recently mentioned files yet. Say any file's name."
@@ -359,6 +359,17 @@ func countFiles(n int) string {
 		return numberWords[n-1] + " files"
 	}
 	return fmt.Sprintf("%d files", n)
+}
+
+// holdEnded closes a choice between the files a name could mean; a list
+// "mention" alone opened stays on screen until a pick or its close.
+func (h *Host) holdEnded() {
+	h.mu.Lock()
+	browsing := h.choosing != nil && h.choosing.spoken == ""
+	h.mu.Unlock()
+	if !browsing {
+		h.closeChoices()
+	}
 }
 
 // closeChoices ends a choice, if one is open: the gate, the badges and the

@@ -40,10 +40,11 @@ func main() {
 	p.SettingsCSS(settingsCSS)
 	p.SettingsTab("claude_code", h.renderClaudeTab)
 
-	// A choice lasts one hold: the gate and the badges clear themselves when
-	// it ends (manifest lifecycle); the window and the open choice are this
-	// plugin's to close.
-	p.On("_platform.input.session_boundary", func(json.RawMessage) { h.closeChoices() })
+	// The gate and the badges last one hold: they clear themselves when it
+	// ends (manifest lifecycle). "Which file?" for a name ends with them;
+	// the list "mention" alone opens stays until a file is picked or the
+	// list is closed, for the pointer, the keys or a switch.
+	p.On("_platform.input.session_boundary", func(json.RawMessage) { h.holdEnded() })
 
 	// Names published before a restart answer "mention" until the next prompt
 	// reports the project again; the warm-up of the word list is paid here,

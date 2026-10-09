@@ -438,3 +438,33 @@ func TestRecentFollowsTheProject(t *testing.T) {
 		t.Error("the old project's recent files must not show in the new one")
 	}
 }
+
+// The list "mention" alone opens outlives the hold, so it can be picked
+// with the pointer, the keys or a switch; "which file?" ends with the hold.
+func TestTheListOutlivesTheHoldAndWhichFileDoesNot(t *testing.T) {
+	h, f := hostWith(t, nameTable{"notes": {"a/notes.md", "b/notes.md"}})
+	h.mu.Lock()
+	h.project.changed = []string{"src/a.go"}
+	h.mu.Unlock()
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	h.holdEnded()
+	if f.cleared != 0 {
+		t.Fatalf("the list was closed at the hold's end (%d clears)", f.cleared)
+	}
+	if err := h.insert("src/a.go"); err != nil { // picked later, by pointer
+		t.Fatal(err)
+	}
+	if got := f.typedText(); len(got) != 1 || f.cleared != 1 {
+		t.Errorf("typed %q, clears %d: a later pick types and closes", got, f.cleared)
+	}
+
+	if err := h.cite("notes"); err != nil {
+		t.Fatal(err)
+	}
+	h.holdEnded()
+	if f.cleared != 2 || f.has(choosingTag, "singleton") {
+		t.Errorf("clears %d: which file? should close with the hold", f.cleared)
+	}
+}
