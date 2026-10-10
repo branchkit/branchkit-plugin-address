@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -186,15 +187,25 @@ type latelyRecord struct {
 	Cwd     string   `json:"cwd"`
 	Changed []string `json:"changed"`
 	Recent  []string `json:"recent"`
+	// At orders projects, so only the latest maxLately are kept.
+	At int64 `json:"at"`
 }
+
+// maxLately is how many projects' lists are kept.
+const maxLately = 20
 
 // saveLately keeps the current project's changed and recent files, so the
 // list "mention" opens is there after a restart, before the next prompt.
+// Saves run one at a time, each snapshotting and writing together, so an
+// older snapshot never overwrites a newer one. Only what the list can show
+// is kept (maxBrowse of each), well inside a record's size limit.
 func (h *Host) saveLately() {
+	h.saveMu.Lock()
+	defer h.saveMu.Unlock()
 	h.mu.Lock()
-	rec := latelyRecord{Cwd: h.project.cwd, Changed: h.project.changed}
+	rec := latelyRecord{Cwd: h.project.cwd, Changed: capped(h.project.changed), At: time.Now().Unix()}
 	if h.recentCwd == h.project.cwd {
-		rec.Recent = h.recent
+		rec.Recent = capped(h.recent)
 	}
 	h.mu.Unlock()
 	if rec.Cwd == "" {
@@ -202,6 +213,39 @@ func (h *Host) saveLately() {
 	}
 	if err := h.plugin.Put(latelyCollection, rec.Cwd, rec); err != nil {
 		branchkit.Logf(pluginID, "keep the mention list: %v", err)
+		return
+	}
+	h.pruneLately()
+}
+
+func capped(paths []string) []string {
+	if len(paths) > maxBrowse {
+		return paths[:maxBrowse]
+	}
+	return paths
+}
+
+// pruneLately keeps the maxLately most recently used projects' lists.
+func (h *Host) pruneLately() {
+	records, err := h.plugin.ListAll(latelyCollection)
+	if err != nil || len(records) <= maxLately {
+		return
+	}
+	type kept struct {
+		id string
+		at int64
+	}
+	all := make([]kept, 0, len(records))
+	for _, r := range records {
+		var rec latelyRecord
+		_ = json.Unmarshal(r.Payload, &rec)
+		all = append(all, kept{r.ID, rec.At})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].at > all[j].at })
+	for _, old := range all[maxLately:] {
+		if _, err := h.plugin.Delete(latelyCollection, old.id); err != nil {
+			branchkit.Logf(pluginID, "prune the mention lists: %v", err)
+		}
 	}
 }
 
@@ -219,7 +263,8 @@ func (h *Host) loadLately() error {
 		if json.Unmarshal(r.Payload, &rec) != nil || rec.Cwd == "" || rec.Cwd != h.project.cwd {
 			continue
 		}
-		if len(h.project.changed) == 0 {
+		// A report since start-up is newer, even one saying nothing changed.
+		if h.published == 0 {
 			h.project.changed = rec.Changed
 		}
 		if h.recentCwd != rec.Cwd || len(h.recent) == 0 {

@@ -499,3 +499,31 @@ func TestTheMentionListSurvivesARestart(t *testing.T) {
 		t.Errorf("after a restart the list is %q, want %q", got, want)
 	}
 }
+
+// A kept list holds only what "mention" can show, and only the latest
+// maxLately projects are kept.
+func TestKeptListsAreBounded(t *testing.T) {
+	h, f := hostWith(t, nameTable{})
+	var many []string
+	for i := 0; i < 400; i++ {
+		many = append(many, fmt.Sprintf("dir/file%03d.go", i))
+	}
+	h.mu.Lock()
+	h.project.cwd, h.project.changed = testCwd, many
+	h.mu.Unlock()
+	h.saveLately()
+	recs, _ := f.ListAll(latelyCollection)
+	var rec latelyRecord
+	if len(recs) != 1 || json.Unmarshal(recs[0].Payload, &rec) != nil || len(rec.Changed) != maxBrowse {
+		t.Fatalf("kept %d changed files, want %d", len(rec.Changed), maxBrowse)
+	}
+	for i := 0; i < maxLately+5; i++ {
+		h.mu.Lock()
+		h.project.cwd = fmt.Sprintf("/p/%02d", i)
+		h.mu.Unlock()
+		h.saveLately()
+	}
+	if recs, _ := f.ListAll(latelyCollection); len(recs) != maxLately {
+		t.Errorf("kept %d projects, want %d", len(recs), maxLately)
+	}
+}

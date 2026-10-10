@@ -37,6 +37,8 @@ type Host struct {
 	// learned maps learnKey(cwd, spoken) to the file the person picked for
 	// that name in that project.
 	learned map[string]string
+	// saveMu runs saveLately one at a time.
+	saveMu sync.Mutex
 	// choosing is the ambiguous name being chosen between, or nil.
 	choosing *choice
 	// recent is the files most recently typed in recentCwd's project, newest
