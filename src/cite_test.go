@@ -560,3 +560,33 @@ func TestRecentFilesArePerProjectAndDeletable(t *testing.T) {
 		t.Errorf("a deleted list still shows: %+v", doc.Sections)
 	}
 }
+
+// The kept list is the truth for recent files: deleted in Settings, the
+// next mention starts afresh; a report at start-up, before the kept list is
+// read, does not wipe it.
+func TestKeptRecentFilesAreTheTruth(t *testing.T) {
+	h, f := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}, "a": {"a.go"}})
+	if err := h.insert("docs/PLAN.md"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Delete(latelyCollection, testCwd); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.insert("a.go"); err != nil {
+		t.Fatal(err)
+	}
+	kept, _ := h.keptFor(testCwd)
+	if !reflect.DeepEqual(kept.Recent, []string{"a.go"}) {
+		t.Errorf("after a delete, kept recent = %q, want only the new mention", kept.Recent)
+	}
+
+	again := newHost(f, testLex) // a restart, and a report before loadLately
+	if err := again.loadProject(); err != nil {
+		t.Fatal(err)
+	}
+	again.saveLately()
+	kept, _ = again.keptFor(testCwd)
+	if !reflect.DeepEqual(kept.Recent, []string{"a.go"}) {
+		t.Errorf("a start-up report wiped the kept recent files: %q", kept.Recent)
+	}
+}

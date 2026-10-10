@@ -165,18 +165,26 @@ func (h *Host) recentIn(cwd string) []string {
 	return h.recentBy[cwd]
 }
 
-// noteRecent puts a typed file at the head of the recent list.
+// noteRecent puts a typed file at the head of the project's recent list,
+// read from and written to the kept list, which is the truth: a list deleted
+// in Settings starts afresh here rather than coming back.
 func (h *Host) noteRecent(path string) {
+	h.saveMu.Lock()
+	defer h.saveMu.Unlock()
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	cwd := h.project.cwd
+	cwd, changed := h.project.cwd, h.project.changed
+	h.mu.Unlock()
+	kept, _ := h.keptFor(cwd)
 	list := []string{path}
-	for _, p := range h.recentBy[cwd] {
+	for _, p := range kept.Recent {
 		if p != path && len(list) < maxBrowse {
 			list = append(list, p)
 		}
 	}
+	h.mu.Lock()
 	h.recentBy[cwd] = list
+	h.mu.Unlock()
+	h.putLately(latelyRecord{Cwd: cwd, Changed: capped(changed), Recent: list})
 }
 
 // latelyRecord is one project's "mention" list, kept across restarts.
@@ -191,21 +199,49 @@ type latelyRecord struct {
 // maxLately is how many projects' lists are kept.
 const maxLately = 20
 
-// saveLately keeps the current project's changed and recent files, so the
-// list "mention" opens is there after a restart, before the next prompt.
-// Saves run one at a time, each snapshotting and writing together, so an
-// older snapshot never overwrites a newer one. Only what the list can show
-// is kept (maxBrowse of each), well inside a record's size limit.
+// saveLately keeps the current project's changed files (after a report), so
+// the list "mention" opens is there after a restart, before the next prompt.
+// The kept list is the truth for recent files: each save reads it and
+// writes back only its own part, one save at a time, so neither a deletion
+// in Settings nor a report at start-up loses or restores them. Only what the
+// list can show is kept (maxBrowse of each), well inside a record's limit.
 func (h *Host) saveLately() {
 	h.saveMu.Lock()
 	defer h.saveMu.Unlock()
 	h.mu.Lock()
-	rec := latelyRecord{Cwd: h.project.cwd, Changed: capped(h.project.changed), At: time.Now().Unix()}
-	rec.Recent = capped(h.recentBy[rec.Cwd])
+	cwd, changed := h.project.cwd, h.project.changed
 	h.mu.Unlock()
+	// The recent files are the kept list's: only the changed files are this
+	// save's to write.
+	kept, _ := h.keptFor(cwd)
+	h.mu.Lock()
+	h.recentBy[cwd] = kept.Recent
+	h.mu.Unlock()
+	h.putLately(latelyRecord{Cwd: cwd, Changed: capped(changed), Recent: kept.Recent})
+}
+
+// keptFor is a project's kept list, if there is one.
+func (h *Host) keptFor(cwd string) (latelyRecord, bool) {
+	records, err := h.plugin.ListAll(latelyCollection)
+	if err != nil {
+		return latelyRecord{}, false
+	}
+	for _, r := range records {
+		var rec latelyRecord
+		if json.Unmarshal(r.Payload, &rec) == nil && rec.Cwd == cwd {
+			return rec, true
+		}
+	}
+	return latelyRecord{}, false
+}
+
+// putLately writes a project's kept list and prunes the oldest projects.
+// Caller holds saveMu.
+func (h *Host) putLately(rec latelyRecord) {
 	if rec.Cwd == "" {
 		return
 	}
+	rec.At = time.Now().Unix()
 	if err := h.plugin.Put(latelyCollection, rec.Cwd, rec); err != nil {
 		branchkit.Logf(pluginID, "keep the mention list: %v", err)
 		return
@@ -342,7 +378,6 @@ func (h *Host) insert(path string) error {
 		return fmt.Errorf("type @%s: %w", path, err)
 	}
 	h.noteRecent(path)
-	h.saveLately()
 	h.mu.Lock()
 	c := h.choosing
 	h.mu.Unlock()
