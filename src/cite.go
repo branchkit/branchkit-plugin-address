@@ -132,6 +132,8 @@ const maxBrowse = 26
 // ones mentioned most recently. While the list is open a file's name works
 // too.
 func (h *Host) browse() error {
+	// The kept list may have been deleted in Settings since: read it again.
+	h.refreshRecent()
 	h.mu.Lock()
 	cwd := h.project.cwd
 	paths := likelyFiles(h.project.changed, h.recentIn(cwd), maxBrowse)
@@ -160,26 +162,21 @@ func likelyFiles(changed, recent []string, n int) []string {
 // recentIn is the recent files when they belong to project cwd. Caller
 // holds h.mu.
 func (h *Host) recentIn(cwd string) []string {
-	if h.recentCwd != cwd {
-		return nil
-	}
-	return h.recent
+	return h.recentBy[cwd]
 }
 
 // noteRecent puts a typed file at the head of the recent list.
 func (h *Host) noteRecent(path string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.recentCwd != h.project.cwd {
-		h.recentCwd, h.recent = h.project.cwd, nil
-	}
+	cwd := h.project.cwd
 	list := []string{path}
-	for _, p := range h.recent {
+	for _, p := range h.recentBy[cwd] {
 		if p != path && len(list) < maxBrowse {
 			list = append(list, p)
 		}
 	}
-	h.recent = list
+	h.recentBy[cwd] = list
 }
 
 // latelyRecord is one project's "mention" list, kept across restarts.
@@ -204,9 +201,7 @@ func (h *Host) saveLately() {
 	defer h.saveMu.Unlock()
 	h.mu.Lock()
 	rec := latelyRecord{Cwd: h.project.cwd, Changed: capped(h.project.changed), At: time.Now().Unix()}
-	if h.recentCwd == h.project.cwd {
-		rec.Recent = capped(h.recent)
-	}
+	rec.Recent = capped(h.recentBy[rec.Cwd])
 	h.mu.Unlock()
 	if rec.Cwd == "" {
 		return
@@ -260,18 +255,39 @@ func (h *Host) loadLately() error {
 	defer h.mu.Unlock()
 	for _, r := range records {
 		var rec latelyRecord
-		if json.Unmarshal(r.Payload, &rec) != nil || rec.Cwd == "" || rec.Cwd != h.project.cwd {
+		if json.Unmarshal(r.Payload, &rec) != nil || rec.Cwd == "" {
 			continue
 		}
-		// A report since start-up is newer, even one saying nothing changed.
-		if h.published == 0 {
-			h.project.changed = rec.Changed
+		// Every project's recent files, so switching back finds them.
+		if _, seen := h.recentBy[rec.Cwd]; !seen {
+			h.recentBy[rec.Cwd] = rec.Recent
 		}
-		if h.recentCwd != rec.Cwd || len(h.recent) == 0 {
-			h.recentCwd, h.recent = rec.Cwd, rec.Recent
+		// A report since start-up is newer, even one saying nothing changed.
+		if rec.Cwd == h.project.cwd && h.published == 0 {
+			h.project.changed = rec.Changed
 		}
 	}
 	return nil
+}
+
+// refreshRecent takes the current project's recent files from the kept
+// list, which every mention writes: deleted there, they are gone here.
+func (h *Host) refreshRecent() {
+	records, err := h.plugin.ListAll(latelyCollection)
+	if err != nil {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	cwd := h.project.cwd
+	for _, r := range records {
+		var rec latelyRecord
+		if json.Unmarshal(r.Payload, &rec) == nil && rec.Cwd == cwd {
+			h.recentBy[cwd] = rec.Recent
+			return
+		}
+	}
+	delete(h.recentBy, cwd)
 }
 
 // cite types the address of the file `spoken` names.

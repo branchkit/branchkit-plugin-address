@@ -41,11 +41,10 @@ type Host struct {
 	saveMu sync.Mutex
 	// choosing is the ambiguous name being chosen between, or nil.
 	choosing *choice
-	// recent is the files most recently typed in recentCwd's project, newest
-	// first: the rest of the list "mention" alone shows. Kept for this run
-	// only.
-	recent    []string
-	recentCwd string
+	// recentBy is, per project folder, the files most recently typed there,
+	// newest first: the rest of the list "mention" alone shows. Kept in the
+	// lately collection, which is the truth (re-read when the list opens).
+	recentBy map[string][]string
 	// published counts the projects publish has installed, so a read-back
 	// that started before one does not overwrite it with older names.
 	published int
@@ -63,5 +62,5 @@ type Host struct {
 }
 
 func newHost(p platform, lex lexicon) *Host {
-	return &Host{plugin: p, lex: lex, learned: map[string]string{}}
+	return &Host{plugin: p, lex: lex, learned: map[string]string{}, recentBy: map[string][]string{}}
 }

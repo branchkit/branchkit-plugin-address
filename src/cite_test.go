@@ -412,7 +412,8 @@ func TestAnEmptyBrowseSaysSo(t *testing.T) {
 	}
 }
 
-// The recent list belongs to its project: another project starts it afresh.
+// Each project has its own recent list: another project starts its own,
+// and the first keeps its files for when the person comes back.
 func TestRecentFollowsTheProject(t *testing.T) {
 	h, _ := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}})
 	h.noteRecent("a.go")
@@ -431,8 +432,8 @@ func TestRecentFollowsTheProject(t *testing.T) {
 	if got := h.recentIn("/other"); !reflect.DeepEqual(got, []string{"c.go"}) {
 		t.Errorf("recent in another project = %q", got)
 	}
-	if h.recentIn(testCwd) != nil {
-		t.Error("the old project's recent files must not show in the new one")
+	if got := h.recentIn(testCwd); !reflect.DeepEqual(got, []string{"a.go", "b.go"}) {
+		t.Errorf("the first project's recent files = %q, want them kept", got)
 	}
 }
 
@@ -525,5 +526,37 @@ func TestKeptListsAreBounded(t *testing.T) {
 	}
 	if recs, _ := f.ListAll(latelyCollection); len(recs) != maxLately {
 		t.Errorf("kept %d projects, want %d", len(recs), maxLately)
+	}
+}
+
+// Switching projects keeps each one's recent files, and deleting a kept
+// list in Settings takes effect at the next "mention".
+func TestRecentFilesArePerProjectAndDeletable(t *testing.T) {
+	h, f := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}})
+	if err := h.insert("docs/PLAN.md"); err != nil {
+		t.Fatal(err)
+	}
+	h.mu.Lock()
+	h.project = project{cwd: "/other", names: nameTable{}}
+	h.mu.Unlock()
+	if err := h.insert("x.go"); err != nil {
+		t.Fatal(err)
+	}
+	recs, _ := f.ListAll(latelyCollection)
+	for _, r := range recs {
+		var rec latelyRecord
+		_ = json.Unmarshal(r.Payload, &rec)
+		if rec.Cwd == testCwd && (len(rec.Recent) != 1 || rec.Recent[0] != "docs/PLAN.md") {
+			t.Errorf("the first project's recent files were overwritten: %q", rec.Recent)
+		}
+	}
+	if _, err := f.Delete(latelyCollection, "/other"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	if doc := f.states[len(f.states)-1]; len(doc.Sections) != 0 {
+		t.Errorf("a deleted list still shows: %+v", doc.Sections)
 	}
 }

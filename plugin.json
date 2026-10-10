@@ -134,7 +134,7 @@
           { "key": "changed", "field_type": "string[]", "label": "Changed files" },
           { "key": "recent", "field_type": "string[]", "label": "Mentioned lately" }
         ],
-        "description": "Per project, the files the working tree last changed and the files you mentioned most recently: what \"mention\" lists. Kept so the list is there after a restart, before the next prompt reports the project. Delete a record to start that project's list afresh."
+        "description": "Per project, the files the working tree last changed and the files you mentioned most recently: what \"mention\" lists. Kept so the list is there after a restart, before the next prompt reports the project. Delete a record to forget the files you mentioned in that project."
       },
       "plugin.address.learned": {
         "preset": "data",
