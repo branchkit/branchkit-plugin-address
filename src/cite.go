@@ -174,7 +174,11 @@ func (h *Host) noteRecent(path string) {
 	h.mu.Lock()
 	cwd, changed := h.project.cwd, h.project.changed
 	h.mu.Unlock()
-	kept, _ := h.keptFor(cwd)
+	kept, err := h.keptFor(cwd)
+	if err != nil {
+		branchkit.Logf(pluginID, "note %s as mentioned: %v", path, err)
+		return
+	}
 	list := []string{path}
 	for _, p := range kept.Recent {
 		if p != path && len(list) < maxBrowse {
@@ -213,26 +217,32 @@ func (h *Host) saveLately() {
 	h.mu.Unlock()
 	// The recent files are the kept list's: only the changed files are this
 	// save's to write.
-	kept, _ := h.keptFor(cwd)
+	kept, err := h.keptFor(cwd)
+	if err != nil {
+		branchkit.Logf(pluginID, "keep the mention list: %v", err)
+		return
+	}
 	h.mu.Lock()
 	h.recentBy[cwd] = kept.Recent
 	h.mu.Unlock()
 	h.putLately(latelyRecord{Cwd: cwd, Changed: capped(changed), Recent: kept.Recent})
 }
 
-// keptFor is a project's kept list, if there is one.
-func (h *Host) keptFor(cwd string) (latelyRecord, bool) {
+// keptFor is a project's kept list (empty when there is none). An error
+// means it could not be read: the caller must not write, or it would put an
+// empty list over the real one.
+func (h *Host) keptFor(cwd string) (latelyRecord, error) {
 	records, err := h.plugin.ListAll(latelyCollection)
 	if err != nil {
-		return latelyRecord{}, false
+		return latelyRecord{}, fmt.Errorf("read %s: %w", latelyCollection, err)
 	}
 	for _, r := range records {
 		var rec latelyRecord
 		if json.Unmarshal(r.Payload, &rec) == nil && rec.Cwd == cwd {
-			return rec, true
+			return rec, nil
 		}
 	}
-	return latelyRecord{}, false
+	return latelyRecord{}, nil
 }
 
 // putLately writes a project's kept list and prunes the oldest projects.

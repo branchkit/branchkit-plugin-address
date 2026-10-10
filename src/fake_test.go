@@ -23,6 +23,8 @@ type fakePlatform struct {
 	// a test can make something else happen in the middle of a call.
 	onPut  func(name string)
 	onList func(name string)
+	// listErr makes ListAll of a collection fail.
+	listErr map[string]error
 }
 
 func newFakePlatform() *fakePlatform {
@@ -35,6 +37,9 @@ func (f *fakePlatform) ListAll(name string) ([]branchkit.CollectionRecord, error
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.listErr[name]; err != nil {
+		return nil, err
+	}
 	ids := make([]string, 0, len(f.collections[name]))
 	for id := range f.collections[name] {
 		ids = append(ids, id)

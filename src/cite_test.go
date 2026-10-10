@@ -590,3 +590,22 @@ func TestKeptRecentFilesAreTheTruth(t *testing.T) {
 		t.Errorf("a start-up report wiped the kept recent files: %q", kept.Recent)
 	}
 }
+
+// A kept list that cannot be read is not written over: the save waits for
+// a read that works, rather than replacing the list with an empty one.
+func TestAnUnreadableKeptListIsNotOverwritten(t *testing.T) {
+	h, f := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}, "a": {"a.go"}})
+	if err := h.insert("docs/PLAN.md"); err != nil {
+		t.Fatal(err)
+	}
+	f.listErr = map[string]error{latelyCollection: errors.New("busy")}
+	if err := h.insert("a.go"); err != nil {
+		t.Fatal(err)
+	}
+	h.saveLately()
+	f.listErr = nil
+	kept, _ := h.keptFor(testCwd)
+	if !reflect.DeepEqual(kept.Recent, []string{"docs/PLAN.md"}) {
+		t.Errorf("kept recent = %q after unreadable saves, want it untouched", kept.Recent)
+	}
+}
