@@ -57,6 +57,9 @@ func main() {
 		if err := h.loadLearned(); err != nil {
 			branchkit.Logf(pluginID, "%v", err)
 		}
+		if err := h.loadLately(); err != nil {
+			branchkit.Logf(pluginID, "%v", err)
+		}
 	})
 
 	// The hook's way in: the socket the manifest asks for (sockets.listen),

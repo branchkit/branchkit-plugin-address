@@ -111,8 +111,7 @@
         },
         "exclusive": true,
         "feeds_matching": {
-          "type": "as_gates",
-          "scoped": true
+          "type": "as_gates"
         },
         "description": "Choosing which file an ambiguous name meant. Exclusive, so only the badge words and \"cancel\" are heard until you pick or the hold ends."
       },
@@ -124,6 +123,18 @@
           "type": "as_gates"
         },
         "description": "The list \"mention\" opens is on screen. Adds its badge words and \"cancel\" to what you can say, in every hold until you pick a file or close the list; everything else still works."
+      },
+      "plugin.address.lately": {
+        "preset": "data",
+        "writers": "introducer_only",
+        "durable": true,
+        "label": "Files lately",
+        "fields": [
+          { "key": "cwd", "field_type": "string", "label": "Project folder" },
+          { "key": "changed", "field_type": "string[]", "label": "Changed files" },
+          { "key": "recent", "field_type": "string[]", "label": "Mentioned lately" }
+        ],
+        "description": "Per project, the files the working tree last changed and the files you mentioned most recently: what \"mention\" lists. Kept so the list is there after a restart, before the next prompt reports the project. Delete a record to start that project's list afresh."
       },
       "plugin.address.learned": {
         "preset": "data",

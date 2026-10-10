@@ -465,3 +465,37 @@ func TestTheListOutlivesTheHoldAndWhichFileDoesNot(t *testing.T) {
 		t.Errorf("clears %d: which file? should close with the hold", f.cleared)
 	}
 }
+
+// The list "mention" opens is there after a restart: the changed and recent
+// files are kept, and a new run reads them back before any report arrives.
+func TestTheMentionListSurvivesARestart(t *testing.T) {
+	h, f := hostWith(t, nameTable{"plan": {"docs/PLAN.md"}})
+	h.mu.Lock()
+	h.project.changed = []string{"src/a.go"}
+	h.mu.Unlock()
+	if err := h.insert("docs/PLAN.md"); err != nil { // recent, and kept
+		t.Fatal(err)
+	}
+	if !f.has(latelyCollection, testCwd) {
+		t.Fatal("the list was not kept")
+	}
+
+	again := newHost(f, testLex) // a restart: same platform, nothing in memory
+	if err := again.loadProject(); err != nil {
+		t.Fatal(err)
+	}
+	if err := again.loadLately(); err != nil {
+		t.Fatal(err)
+	}
+	if err := again.browse(); err != nil {
+		t.Fatal(err)
+	}
+	doc := f.states[len(f.states)-1]
+	var got []string
+	for _, it := range doc.Sections[0].Items {
+		got = append(got, *it.Subtitle)
+	}
+	if want := []string{"src/a.go", "docs/PLAN.md"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("after a restart the list is %q, want %q", got, want)
+	}
+}

@@ -184,6 +184,7 @@ func (h *Host) publish(rep projectReport) error {
 	h.queueMu.Lock()
 	h.lastDigest = digest
 	h.queueMu.Unlock()
+	h.saveLately()
 	branchkit.Logf(pluginID, "published %d names for %d files in %s", len(names), len(ranked), rep.Cwd)
 	h.refreshSettings()
 	return nil

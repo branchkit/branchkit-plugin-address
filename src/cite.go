@@ -20,6 +20,7 @@ const (
 	choosingTag       = "plugin.address.choosing"
 	browsingTag       = "plugin.address.browsing"
 	learnedCollection = "plugin.address.learned"
+	latelyCollection  = "plugin.address.lately"
 	// alphabetCollection is the platform's pointing deck: one vetted
 	// codeword per letter, the words every chooser badges its rows with.
 	alphabetCollection = "alphabet"
@@ -180,6 +181,54 @@ func (h *Host) noteRecent(path string) {
 	h.recent = list
 }
 
+// latelyRecord is one project's "mention" list, kept across restarts.
+type latelyRecord struct {
+	Cwd     string   `json:"cwd"`
+	Changed []string `json:"changed"`
+	Recent  []string `json:"recent"`
+}
+
+// saveLately keeps the current project's changed and recent files, so the
+// list "mention" opens is there after a restart, before the next prompt.
+func (h *Host) saveLately() {
+	h.mu.Lock()
+	rec := latelyRecord{Cwd: h.project.cwd, Changed: h.project.changed}
+	if h.recentCwd == h.project.cwd {
+		rec.Recent = h.recent
+	}
+	h.mu.Unlock()
+	if rec.Cwd == "" {
+		return
+	}
+	if err := h.plugin.Put(latelyCollection, rec.Cwd, rec); err != nil {
+		branchkit.Logf(pluginID, "keep the mention list: %v", err)
+	}
+}
+
+// loadLately restores the current project's list, filling only what this
+// run has not learned yet (a report since start-up is newer).
+func (h *Host) loadLately() error {
+	records, err := h.plugin.ListAll(latelyCollection)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", latelyCollection, err)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, r := range records {
+		var rec latelyRecord
+		if json.Unmarshal(r.Payload, &rec) != nil || rec.Cwd == "" || rec.Cwd != h.project.cwd {
+			continue
+		}
+		if len(h.project.changed) == 0 {
+			h.project.changed = rec.Changed
+		}
+		if h.recentCwd != rec.Cwd || len(h.recent) == 0 {
+			h.recentCwd, h.recent = rec.Cwd, rec.Recent
+		}
+	}
+	return nil
+}
+
 // cite types the address of the file `spoken` names.
 func (h *Host) cite(spoken string) error {
 	spoken = strings.TrimSpace(spoken)
@@ -232,6 +281,7 @@ func (h *Host) insert(path string) error {
 		return fmt.Errorf("type @%s: %w", path, err)
 	}
 	h.noteRecent(path)
+	h.saveLately()
 	h.mu.Lock()
 	c := h.choosing
 	h.mu.Unlock()
