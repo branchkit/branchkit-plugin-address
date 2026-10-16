@@ -126,6 +126,7 @@
       },
       "plugin.address.lately": {
         "preset": "data",
+        "id_strategy": { "type": "by_field", "field": "cwd" },
         "writers": "introducer_only",
         "durable": true,
         "label": "Files lately",
@@ -138,6 +139,7 @@
       },
       "plugin.address.learned": {
         "preset": "data",
+        "id_strategy": { "type": "by_field", "field": "id" },
         "writers": "introducer_only",
         "durable": true,
         "label": "Names you have taught",

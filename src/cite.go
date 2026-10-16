@@ -37,6 +37,9 @@ type choice struct {
 
 // learnedRecord is one answer to "which file?".
 type learnedRecord struct {
+	// ID is the record's id (learnedID), carried in the record because the
+	// collection is identified by this field.
+	ID     string `json:"id"`
 	Cwd    string `json:"cwd"`
 	Spoken string `json:"spoken"`
 	Path   string `json:"path"`
@@ -573,8 +576,9 @@ func (h *Host) learn(cwd, spoken, path string) {
 	h.mu.Lock()
 	h.learned[learnKey(cwd, spoken)] = path
 	h.mu.Unlock()
-	rec := learnedRecord{Cwd: cwd, Spoken: spoken, Path: path}
-	if err := h.plugin.Put(learnedCollection, learnedID(cwd, spoken), rec); err != nil {
+	id := learnedID(cwd, spoken)
+	rec := learnedRecord{ID: id, Cwd: cwd, Spoken: spoken, Path: path}
+	if err := h.plugin.Put(learnedCollection, id, rec); err != nil {
 		branchkit.Logf(pluginID, "learn %q: %v", spoken, err)
 	}
 }

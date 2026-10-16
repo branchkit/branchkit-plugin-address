@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"sort"
 	"sync"
 
@@ -25,6 +27,54 @@ type fakePlatform struct {
 	onList func(name string)
 	// listErr makes ListAll of a collection fail.
 	listErr map[string]error
+}
+
+// idStrategies is each collection's id strategy as plugin.json declares it
+// (or "preset:<name>" when it leaves it to the preset), so the fake refuses
+// a keyed write the platform would refuse: a Put that succeeded here once
+// failed on every call in the app.
+var idStrategies = func() map[string]string {
+	raw, err := os.ReadFile("../plugin.json")
+	if err != nil {
+		panic(err)
+	}
+	var m struct {
+		Provides struct {
+			Collections map[string]struct {
+				Preset     string `json:"preset"`
+				IDStrategy *struct {
+					Type string `json:"type"`
+				} `json:"id_strategy"`
+			} `json:"collections"`
+		} `json:"provides"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		panic(err)
+	}
+	out := map[string]string{}
+	for name, c := range m.Provides.Collections {
+		if c.IDStrategy != nil {
+			out[name] = c.IDStrategy.Type
+		} else {
+			out[name] = "preset:" + c.Preset
+		}
+	}
+	return out
+}()
+
+// addressable is nil when the platform lets a record of this collection be
+// written or deleted by id. The presets that leave no id (data, log) do
+// not; a collection another plugin owns is not this manifest's to judge.
+func addressable(name string) error {
+	s, ok := idStrategies[name]
+	if !ok {
+		return nil
+	}
+	switch s {
+	case "by_field", "key_value", "singleton", "preset:tag", "preset:named_entities":
+		return nil
+	}
+	return fmt.Errorf("OPERATION_NOT_PERMITTED: %s has id_strategy %q; records are not addressable", name, s)
 }
 
 func newFakePlatform() *fakePlatform {
@@ -68,6 +118,9 @@ func (f *fakePlatform) Put(name, id string, payload any) error {
 	if f.onPut != nil {
 		f.onPut(name)
 	}
+	if err := addressable(name); err != nil {
+		return err
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -82,6 +135,9 @@ func (f *fakePlatform) Put(name, id string, payload any) error {
 }
 
 func (f *fakePlatform) Delete(name, id string) (bool, error) {
+	if err := addressable(name); err != nil {
+		return false, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_, ok := f.collections[name][id]
