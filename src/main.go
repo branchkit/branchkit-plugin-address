@@ -2,7 +2,6 @@ package main
 
 import (
 	_ "embed"
-	"encoding/json"
 	"os"
 
 	"github.com/branchkit/plugin-sdk-go"
@@ -44,7 +43,7 @@ func main() {
 	// itself then, manifest lifecycle). The list "mention" alone opens stays
 	// until a file is picked or the list is closed: by "cancel", by the
 	// card's close (the manifest's on_close), by the pointer, keys or switch.
-	p.On("_platform.input.session_boundary", func(json.RawMessage) { h.holdEnded() })
+	p.OnInputSessionBoundary(h.holdEnded)
 
 	// Names published before a restart answer "mention" until the next prompt
 	// reports the project again; the warm-up of the word list is paid here,
