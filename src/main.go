@@ -37,7 +37,7 @@ func main() {
 	})
 
 	p.SettingsCSS(settingsCSS)
-	p.SettingsTab("claude_code", h.renderClaudeTab)
+	p.Page("claude_code", h.renderClaudeTab)
 
 	// "Which file?" for a name lasts the hold (its exclusive gate clears
 	// itself then, manifest lifecycle). The list "mention" alone opens stays
