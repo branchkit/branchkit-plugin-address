@@ -3,6 +3,7 @@
   "id": "address",
   "name": "Address",
   "icon": "book",
+  "icon_color": "brown",
   "version": "0.1.0",
   "min_api_version": "0.2.0",
   "description": "Say a file's name, get its address typed where you are writing: \"mention mission\" types @docs/MISSION.md into Claude Code.",
