@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,17 +16,25 @@ import (
 // Before any report the tab says so and opens the setup steps; the steps
 // carry the hook pointed at this installation's binary.
 func TestClaudeTabBeforeAnyReport(t *testing.T) {
-	t.Setenv("BRANCHKIT_PLUGIN_DIR", "/tmp/a folder/plugins/address")
+	dir := filepath.FromSlash("/tmp/a folder/plugins/address")
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", dir)
 	h := newHost(newFakePlatform(), testLex)
 	html, err := h.renderClaudeTab(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The folder as it appears in the snippet: this OS's separators,
+	// JSON-escaped (a Windows backslash is doubled), then HTML-escaped.
+	quoted, err := json.Marshal(dir + string(filepath.Separator))
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder := template.HTMLEscapeString(strings.Trim(string(quoted), `"`))
 	for _, want := range []string{
 		"Not set up",
 		`<details class="page-more address-setup" open>`,
 		"~/.claude/settings.json",
-		`/tmp/a folder/plugins/address/`,
+		folder,
 		"claude-hook",
 		"UserPromptSubmit",
 	} {
@@ -96,43 +107,57 @@ func TestAReportConnectsTheTab(t *testing.T) {
 	}
 }
 
-// The command survives the shell: the folder's space stays inside the
-// quotes, and characters the shell would expand are escaped.
-func TestHookCommandQuotesThePath(t *testing.T) {
-	for in, want := range map[string]string{
-		"/tmp/a folder/plugins/address/address-plugin": `"/tmp/a folder/plugins/address/address-plugin" claude-hook`,
-		"/tmp/a$b`c\"d\\e/address-plugin":              `"/tmp/a\$b` + "\\`" + `c\"d\\e/address-plugin" claude-hook`,
+// The block is valid JSON in the shape Claude Code reads, the same hook on
+// both events, in exec form: the binary's path exactly as given, whatever
+// a shell would make of it (a space, a Windows path's backslashes, `$`,
+// a backtick, a quote), and the subcommand as its own argument.
+func TestHookSettingsShape(t *testing.T) {
+	for _, binary := range []string{
+		"/p/address-plugin",
+		"/tmp/a folder/plugins/address/address-plugin",
+		`C:\Users\a b\plugins\address\address-plugin.exe`,
+		"/tmp/a$b`c\"d\\e/address-plugin",
 	} {
-		if got := hookCommand(in); got != want {
-			t.Errorf("hookCommand(%q) = %s, want %s", in, got, want)
+		raw, err := hookSettings(binary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got struct {
+			Hooks map[string][]struct {
+				Hooks []struct {
+					Type    string   `json:"type"`
+					Command string   `json:"command"`
+					Args    []string `json:"args"`
+					Timeout int      `json:"timeout"`
+				} `json:"hooks"`
+			} `json:"hooks"`
+		}
+		if err := json.Unmarshal([]byte(raw), &got); err != nil {
+			t.Fatalf("not JSON: %v\n%s", err, raw)
+		}
+		for _, event := range []string{"SessionStart", "UserPromptSubmit"} {
+			m := got.Hooks[event]
+			if len(m) != 1 || len(m[0].Hooks) != 1 {
+				t.Fatalf("%s = %+v", event, m)
+			}
+			h := m[0].Hooks[0]
+			if h.Type != "command" || h.Command != binary || len(h.Args) != 1 || h.Args[0] != "claude-hook" {
+				t.Errorf("%s for %q = %+v", event, binary, h)
+			}
 		}
 	}
 }
 
-// The block is valid JSON in the shape Claude Code reads, the same hook on
-// both events.
-func TestHookSettingsShape(t *testing.T) {
-	cmd := hookCommand("/p/address-plugin")
-	raw, err := hookSettings(cmd)
+// The binary's path is the plugin folder joined with the binary's own name
+// by this OS's rules, so on Windows it is a Windows path.
+func TestPluginBinaryIsInThePluginFolder(t *testing.T) {
+	dir := filepath.FromSlash("/tmp/a folder/plugins/address")
+	t.Setenv("BRANCHKIT_PLUGIN_DIR", dir)
+	exe, err := os.Executable()
 	if err != nil {
-		t.Fatal(err)
+		t.Skip(err)
 	}
-	var got struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Type    string `json:"type"`
-				Command string `json:"command"`
-				Timeout int    `json:"timeout"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal([]byte(raw), &got); err != nil {
-		t.Fatalf("not JSON: %v\n%s", err, raw)
-	}
-	for _, event := range []string{"SessionStart", "UserPromptSubmit"} {
-		m := got.Hooks[event]
-		if len(m) != 1 || len(m[0].Hooks) != 1 || m[0].Hooks[0].Command != cmd || m[0].Hooks[0].Type != "command" {
-			t.Errorf("%s = %+v", event, m)
-		}
+	if got, want := pluginBinary(), filepath.Join(dir, filepath.Base(exe)); got != want {
+		t.Errorf("pluginBinary() = %q, want %q", got, want)
 	}
 }

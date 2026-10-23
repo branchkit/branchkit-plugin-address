@@ -63,7 +63,7 @@ func (h *Host) renderClaudeTab(_ *branchkit.RenderSettingsRequest) (string, erro
 	case data.Names > 0:
 		data.Status = hookEarlier
 	}
-	snippet, err := hookSettings(hookCommand(pluginBinary()))
+	snippet, err := hookSettings(pluginBinary())
 	if err != nil {
 		return "", err
 	}
@@ -111,26 +111,24 @@ func pluginBinary() string {
 	return exe
 }
 
-// hookCommand is the shell command Claude Code runs: the binary, quoted for
-// a POSIX shell (the plugin folder is under "Application Support"), run as
-// the hook.
-func hookCommand(binary string) string {
-	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`, "`", "\\`")
-	return `"` + r.Replace(binary) + `" claude-hook`
-}
-
 // hookSettings is the "hooks" block to add to ~/.claude/settings.json, the
-// same hook on both events (hook.go says why both).
-func hookSettings(command string) (string, error) {
+// same hook on both events (hook.go says why both). It is in Claude Code's
+// exec form: with "args" present, Claude Code spawns the binary directly,
+// with no shell, so the path is written as it is, on every OS. A shell form
+// would need quoting for sh on macOS and Linux, and on Windows for Git Bash
+// or, where Git Bash is not installed, PowerShell, which quote differently;
+// and a Windows path's backslashes mean different things to each.
+func hookSettings(binary string) (string, error) {
 	type hook struct {
-		Type    string `json:"type"`
-		Command string `json:"command"`
-		Timeout int    `json:"timeout"`
+		Type    string   `json:"type"`
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
+		Timeout int      `json:"timeout"`
 	}
 	type matcher struct {
 		Hooks []hook `json:"hooks"`
 	}
-	entry := []matcher{{Hooks: []hook{{Type: "command", Command: command, Timeout: 5}}}}
+	entry := []matcher{{Hooks: []hook{{Type: "command", Command: binary, Args: []string{"claude-hook"}, Timeout: 5}}}}
 	block := struct {
 		Hooks struct {
 			SessionStart     []matcher `json:"SessionStart"`

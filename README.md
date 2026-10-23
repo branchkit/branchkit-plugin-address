@@ -91,21 +91,25 @@ them to the plugin over the socket it listens on (its port and pairing token
 are in `connect.json` beside the binary). Add it to `~/.claude/settings.json`.
 The plugin's **Claude Code** settings tab shows these hooks with the path of
 your installation filled in, ready to copy, and whether Claude Code has
-reported a project yet. By hand, with the path to the plugin's folder in
-your BranchKit installation:
+reported a project yet. By hand, with the full path to the plugin's binary
+in your BranchKit installation (on Windows, `address-plugin.exe`, its
+backslashes doubled as JSON requires):
 
 ```json
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "\"$HOME/Library/Application Support/BranchKit/plugins/address/address-plugin\" claude-hook", "timeout": 5 }] }
+      { "hooks": [{ "type": "command", "command": "/Users/you/Library/Application Support/BranchKit/plugins/address/address-plugin", "args": ["claude-hook"], "timeout": 5 }] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "\"$HOME/Library/Application Support/BranchKit/plugins/address/address-plugin\" claude-hook", "timeout": 5 }] }
+      { "hooks": [{ "type": "command", "command": "/Users/you/Library/Application Support/BranchKit/plugins/address/address-plugin", "args": ["claude-hook"], "timeout": 5 }] }
     ]
   }
 }
 ```
+
+With `args` present, Claude Code runs the binary directly, with no shell, so
+the path is not quoted and `~` or `$HOME` is not expanded.
 
 It runs at the start of each session and before each prompt, so the names
 follow the project of your latest prompt. It never delays or changes a
