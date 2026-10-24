@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -33,7 +34,13 @@ type choice struct {
 	cwd    string
 	spoken string
 	paths  []string
+	// neverReported: the hook has not reported a project, so an empty list
+	// says how to set it up rather than what to say.
+	neverReported bool
 }
+
+// empty is a list "mention" alone opened with no files in it.
+func (c *choice) empty() bool { return c.spoken == "" && len(c.paths) == 0 }
 
 // learnedRecord is one answer to "which file?".
 type learnedRecord struct {
@@ -140,8 +147,23 @@ func (h *Host) browse() error {
 	h.mu.Lock()
 	cwd := h.project.cwd
 	paths := likelyFiles(h.project.changed, h.recentIn(cwd), maxBrowse)
+	never := h.heard.IsZero() && cwd == ""
 	h.mu.Unlock()
-	return h.offer(choice{cwd: cwd, paths: paths})
+	return h.offer(choice{cwd: cwd, paths: paths, neverReported: never})
+}
+
+// emptyBrowsePhrase is what the list "mention" alone opens says when it has
+// no files: why, and what to do instead.
+func emptyBrowsePhrase(c choice) string {
+	if c.neverReported {
+		return "Claude Code has not reported a project yet, so there are no files to mention. " +
+			"Add the hook in Settings > Address > Claude Code; its entries are ready to copy there."
+	}
+	folder := "this project"
+	if c.cwd != "" {
+		folder = filepath.Base(c.cwd)
+	}
+	return fmt.Sprintf("No changed or mentioned files in %s. Say \"mention\" and a file's name.", folder)
 }
 
 // likelyFiles is changed then recent, each file once, at most n.
@@ -459,6 +481,11 @@ func (h *Host) offer(c choice) error {
 	// opens adds "pick <word>" and "cancel" to what can be said, in every
 	// hold until it closes; its own hold's exclusive gate is the "mention"
 	// command's (sets_tags), which the platform fences to that hold.
+	// An empty list opens the gate too, though there is nothing to pick:
+	// it is what makes "cancel" heard, should the hold's end arrive before
+	// the list is recorded (the word decodes at the release) and so leave
+	// it open until the next hold ends. Otherwise it closes with this hold
+	// (holdEnded).
 	gate := choosingTag
 	if c.spoken == "" {
 		gate = browsingTag
@@ -473,9 +500,12 @@ func (h *Host) offer(c choice) error {
 	if c.spoken == "" {
 		footer = "say \"pick\" and the word beside a file, or \"cancel\""
 		phrase = "Files you changed or mentioned. Say \"pick\" and the word beside one, or choose it."
-		if len(c.paths) == 0 {
-			phrase = "No changed or recently mentioned files yet. Say \"mention\" and a file's name."
-		}
+	}
+	var footerRef *string
+	if c.empty() {
+		phrase = emptyBrowsePhrase(c)
+	} else {
+		footerRef = &footer
 	}
 	// An empty list is no section: the window shows the phrase instead.
 	var sections []branchkit.OutputSection
@@ -488,7 +518,7 @@ func (h *Host) offer(c choice) error {
 		Title:    "Which file?",
 		Phrase:   phrase,
 		Sections: sections,
-		Footer:   &footer,
+		Footer:   footerRef,
 		Urgency:  branchkit.OutputUrgencyNotable,
 		Locale:   "en",
 		V:        1,
@@ -531,12 +561,13 @@ func countFiles(n int) string {
 }
 
 // holdEnded closes a choice between the files a name could mean; a list
-// "mention" alone opened stays on screen until a pick or its close.
+// "mention" alone opened stays on screen until a pick or its close, unless
+// it is empty: with nothing to pick it has said what it had to say.
 func (h *Host) holdEnded() {
 	h.mu.Lock()
-	browsing := h.choosing != nil && h.choosing.spoken == ""
+	lasting := h.choosing != nil && h.choosing.spoken == "" && !h.choosing.empty()
 	h.mu.Unlock()
-	if !browsing {
+	if !lasting {
 		h.closeChoices()
 	}
 }

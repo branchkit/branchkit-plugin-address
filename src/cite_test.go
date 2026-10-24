@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testCwd = "/work/project"
@@ -400,15 +401,55 @@ func TestBrowseIsCappedAtOneWordEach(t *testing.T) {
 	}
 }
 
-// Nothing changed or mentioned yet: the window says so, and names still work.
-func TestAnEmptyBrowseSaysSo(t *testing.T) {
+// Nothing changed or mentioned yet: the window says so, offers nothing to
+// pick, and closes with the hold, gate and all.
+func TestAnEmptyBrowseSaysSoAndClosesWithTheHold(t *testing.T) {
 	h, f := hostWith(t, nameTable{})
+	h.mu.Lock()
+	h.project.cwd = "/work/branchkit"
+	h.heard = time.Now()
+	h.mu.Unlock()
 	if err := h.browse(); err != nil {
 		t.Fatal(err)
 	}
 	doc := f.states[len(f.states)-1]
-	if len(doc.Sections) != 0 || !strings.Contains(doc.Phrase, "a file's name") {
-		t.Errorf("doc = %+v", doc)
+	want := "No changed or mentioned files in branchkit. Say \"mention\" and a file's name."
+	if len(doc.Sections) != 0 || doc.Phrase != want {
+		t.Errorf("phrase %q, sections %d; want %q", doc.Phrase, len(doc.Sections), want)
+	}
+	if doc.Footer != nil {
+		t.Errorf("footer %q: nothing to pick, so no footer", *doc.Footer)
+	}
+	h.holdEnded()
+	if f.cleared != 1 || f.has(browsingTag, "singleton") || f.has(choosingTag, "singleton") {
+		t.Errorf("clears %d: an empty list closes with the hold, gate and all", f.cleared)
+	}
+	if !h.isChoosing(nil) {
+		t.Error("the empty list is still recorded as open after the hold")
+	}
+}
+
+// The hook has never reported a project: the empty list says where to set
+// it up.
+func TestAnEmptyBrowseBeforeAnyReportPointsAtTheHook(t *testing.T) {
+	h, f := hostWith(t, nameTable{})
+	h.mu.Lock()
+	h.project.cwd = ""
+	h.heard = time.Time{}
+	h.mu.Unlock()
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	doc := f.states[len(f.states)-1]
+	if !strings.Contains(doc.Phrase, "has not reported a project") || !strings.Contains(doc.Phrase, "Settings > Address > Claude Code") {
+		t.Errorf("phrase %q", doc.Phrase)
+	}
+	if doc.Footer != nil {
+		t.Errorf("footer %q: nothing to pick, so no footer", *doc.Footer)
+	}
+	h.holdEnded()
+	if f.cleared != 1 {
+		t.Errorf("clears %d: an empty list closes with the hold", f.cleared)
 	}
 }
 
