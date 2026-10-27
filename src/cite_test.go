@@ -5,12 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
-const testCwd = "/work/project"
+// testCwd is the project the tests report: absolute on every OS, as a real
+// report's cwd is (the handler refuses one that is not), so on Windows it
+// carries a drive.
+var testCwd = func() string {
+	if runtime.GOOS == "windows" {
+		return `C:\work\project`
+	}
+	return "/work/project"
+}()
 
 // testDeck is the alphabet hostWith publishes, in the order the badges take
 // it (sorted).
