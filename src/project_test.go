@@ -243,9 +243,9 @@ func TestAFailedFolderWriteIsRetried(t *testing.T) {
 	files := []string{"docs/MISSION.md"}
 	_ = h.publish(projectReport{Cwd: "/a", Files: files})
 	f.putErr = map[string]error{projectCollection: errors.New("busy")}
-	_ = h.publish(projectReport{Cwd: "/b", Files: files, Changed: files})
-	f.putErr = nil
 	_ = h.publish(projectReport{Cwd: "/b", Files: files})
+	f.putErr = nil
+	_ = h.publish(projectReport{Cwd: "/b", Files: files}) // the same report
 	var rec projectRecord
 	if err := json.Unmarshal(f.collections[projectCollection][currentProject], &rec); err != nil || rec.Cwd != "/b" {
 		t.Errorf("project record = %+v (%v), want /b", rec, err)

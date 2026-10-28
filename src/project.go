@@ -168,7 +168,14 @@ func (h *Host) publish(rep projectReport) error {
 	h.queueMu.Lock()
 	same := digest == h.lastDigest
 	h.queueMu.Unlock()
-	if same {
+	// A report like the last is still published while the folder record
+	// does not say its folder: the record's write failed, and only a
+	// publish retries it. Its names are unchanged, so the replace writes
+	// nothing.
+	h.mu.Lock()
+	moved := h.keptCwd != rep.Cwd
+	h.mu.Unlock()
+	if same && !moved {
 		return nil
 	}
 
@@ -184,20 +191,21 @@ func (h *Host) publish(rep projectReport) error {
 	if _, err := h.plugin.Replace(filesCollection, entries, branchkit.ScopeCollection()); err != nil {
 		return fmt.Errorf("replace %s: %w", filesCollection, err)
 	}
-	h.mu.Lock()
-	moved := h.keptCwd != rep.Cwd
-	h.mu.Unlock()
+	kept := false
 	if moved {
 		if err := h.plugin.Put(projectCollection, currentProject, projectRecord{Cwd: rep.Cwd}); err != nil {
 			branchkit.Logf(pluginID, "keep the project folder: %v", err)
 		} else {
-			h.mu.Lock()
-			h.keptCwd = rep.Cwd
-			h.mu.Unlock()
+			kept = true
 		}
 	}
 
 	h.mu.Lock()
+	// With `published`, in one section: a read-back (loadProject) that
+	// started before this publish sees the count move and keeps both.
+	if kept {
+		h.keptCwd = rep.Cwd
+	}
 	var likely []string
 	for _, f := range ranked {
 		if changed[f] {
