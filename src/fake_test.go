@@ -27,6 +27,8 @@ type fakePlatform struct {
 	onList func(name string)
 	// listErr makes ListAll of a collection fail.
 	listErr map[string]error
+	// putErr makes a Put into a collection fail.
+	putErr map[string]error
 }
 
 // idStrategies is each collection's id strategy as plugin.json declares it
@@ -119,6 +121,9 @@ func (f *fakePlatform) Put(name, id string, payload any) error {
 		f.onPut(name)
 	}
 	if err := addressable(name); err != nil {
+		return err
+	}
+	if err := f.putErr[name]; err != nil {
 		return err
 	}
 	raw, err := json.Marshal(payload)

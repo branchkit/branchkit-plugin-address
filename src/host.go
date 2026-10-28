@@ -34,6 +34,10 @@ type Host struct {
 	// project is the project of the latest report: its folder and the names
 	// of its files.
 	project project
+	// keptCwd is the folder plugin.address.project holds, as far as this
+	// run knows: a publish writes the record until it says the project's
+	// folder, so a failed write is retried by the next report.
+	keptCwd string
 	// learned maps learnKey(cwd, spoken) to the file the person picked for
 	// that name in that project.
 	learned map[string]string

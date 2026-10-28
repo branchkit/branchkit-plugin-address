@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -206,6 +207,48 @@ func TestAnotherCheckoutOfTheProjectRewritesNoName(t *testing.T) {
 	}
 	if h.project.cwd != "/repo/.claude/worktrees/x" {
 		t.Errorf("cwd %q", h.project.cwd)
+	}
+}
+
+// Names published before the folder had its own record each carried it:
+// a restart after the update still knows the project.
+func TestNamesFromBeforeTheFolderRecordGiveTheFolder(t *testing.T) {
+	f := newFakePlatform()
+	old := map[string]any{"spoken": "mission", "paths": []string{"docs/MISSION.md"}, "cwd": testCwd}
+	if err := f.Put(filesCollection, "mission", old); err != nil {
+		t.Fatal(err)
+	}
+	h := newHost(f, testLex)
+	if err := h.loadProject(); err != nil {
+		t.Fatal(err)
+	}
+	if h.project.cwd != testCwd {
+		t.Errorf("cwd %q", h.project.cwd)
+	}
+	// The next publish writes the folder's record, though the folder is
+	// the one already known.
+	if err := h.publish(projectReport{Cwd: testCwd, Files: []string{"docs/MISSION.md"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !f.has(projectCollection, currentProject) {
+		t.Error("the folder record was not written")
+	}
+}
+
+// A folder record that failed to write is written by the next report for
+// the same folder, not left saying the previous project.
+func TestAFailedFolderWriteIsRetried(t *testing.T) {
+	f := newFakePlatform()
+	h := newHost(f, testLex)
+	files := []string{"docs/MISSION.md"}
+	_ = h.publish(projectReport{Cwd: "/a", Files: files})
+	f.putErr = map[string]error{projectCollection: errors.New("busy")}
+	_ = h.publish(projectReport{Cwd: "/b", Files: files, Changed: files})
+	f.putErr = nil
+	_ = h.publish(projectReport{Cwd: "/b", Files: files})
+	var rec projectRecord
+	if err := json.Unmarshal(f.collections[projectCollection][currentProject], &rec); err != nil || rec.Cwd != "/b" {
+		t.Errorf("project record = %+v (%v), want /b", rec, err)
 	}
 }
 

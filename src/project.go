@@ -185,11 +185,15 @@ func (h *Host) publish(rep projectReport) error {
 		return fmt.Errorf("replace %s: %w", filesCollection, err)
 	}
 	h.mu.Lock()
-	moved := h.project.cwd != rep.Cwd
+	moved := h.keptCwd != rep.Cwd
 	h.mu.Unlock()
 	if moved {
 		if err := h.plugin.Put(projectCollection, currentProject, projectRecord{Cwd: rep.Cwd}); err != nil {
 			branchkit.Logf(pluginID, "keep the project folder: %v", err)
+		} else {
+			h.mu.Lock()
+			h.keptCwd = rep.Cwd
+			h.mu.Unlock()
 		}
 	}
 
@@ -266,23 +270,37 @@ func (h *Host) loadProject() error {
 		return fmt.Errorf("read %s: %w", projectCollection, err)
 	}
 	p := project{names: nameTable{}}
+	kept := ""
+	for _, rec := range folders {
+		var r projectRecord
+		if rec.ID == currentProject && json.Unmarshal(rec.Payload, &r) == nil {
+			kept = r.Cwd
+		}
+	}
+	p.cwd = kept
 	for _, rec := range records {
 		var r fileRecord
 		if err := json.Unmarshal(rec.Payload, &r); err != nil || r.Spoken == "" || len(r.Paths) == 0 {
 			continue
 		}
 		p.names[r.Spoken] = r.Paths
-	}
-	for _, rec := range folders {
-		var r projectRecord
-		if rec.ID == currentProject && json.Unmarshal(rec.Payload, &r) == nil {
-			p.cwd = r.Cwd
+		// Names published before the folder had a record of its own each
+		// carried it; until the next publish writes the record, they say
+		// which project they belong to.
+		if p.cwd == "" {
+			var old struct {
+				Cwd string `json:"cwd"`
+			}
+			if json.Unmarshal(rec.Payload, &old) == nil {
+				p.cwd = old.Cwd
+			}
 		}
 	}
 	h.mu.Lock()
 	// A publish that landed during the read installed newer names than the
 	// read may have seen; keep those.
 	if h.published == before {
+		h.keptCwd = kept
 		// The collection holds names, not which files changed: keep the
 		// changed list the last report gave for this same project, or the
 		// "mention" list would lose its head until the next prompt.
