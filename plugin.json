@@ -77,8 +77,7 @@
         "label": "Files you can mention",
         "fields": [
           { "key": "spoken", "field_type": "string", "label": "Spoken name", "required": true },
-          { "key": "paths", "field_type": "string[]", "label": "Files it could mean" },
-          { "key": "cwd", "field_type": "string", "label": "Folder the paths are relative to" }
+          { "key": "paths", "field_type": "string[]", "label": "Files it could mean" }
         ],
         "feeds_matching": {
           "type": "as_named_entities",
@@ -124,6 +123,18 @@
           "type": "as_gates"
         },
         "description": "The list \"mention\" opens is on screen. Adds its badge words and \"cancel\" to what you can say, in every hold until you pick a file or close the list; everything else still works."
+      },
+      "plugin.address.project": {
+        "preset": "data",
+        "cardinality": "singleton",
+        "id_strategy": { "type": "singleton" },
+        "writers": "introducer_only",
+        "durable": true,
+        "label": "Project folder",
+        "fields": [
+          { "key": "cwd", "field_type": "string", "label": "Folder the file names are relative to" }
+        ],
+        "description": "One record: the folder of the project whose files you can mention, so a restarted plugin knows which project its names and your taught names belong to before the next prompt reports it."
       },
       "plugin.address.lately": {
         "preset": "data",

@@ -24,6 +24,21 @@ import (
 
 const filesCollection = "address_files"
 
+// projectCollection holds one record, the folder the published names are
+// relative to. It is kept apart from the names: each name's record carried
+// it once, so a report from another checkout of the same project (a git
+// worktree, the paths all the same) rewrote every record, thousands a
+// prompt, though no name had changed.
+const (
+	projectCollection = "plugin.address.project"
+	currentProject    = "singleton"
+)
+
+// projectRecord is the folder the names in filesCollection are relative to.
+type projectRecord struct {
+	Cwd string `json:"cwd"`
+}
+
 // maxFiles caps how many files one project contributes. Every name is a word
 // sequence the speech engine holds while "mention" is active; past a few
 // thousand files the names of the least likely ones are not worth the
@@ -59,7 +74,6 @@ type project struct {
 type fileRecord struct {
 	Spoken string   `json:"spoken"`
 	Paths  []string `json:"paths"`
-	Cwd    string   `json:"cwd"`
 }
 
 // mentionable reports whether a path can be written as a Claude Code
@@ -163,12 +177,20 @@ func (h *Host) publish(rep projectReport) error {
 		ranked = ranked[:maxFiles]
 	}
 	names := nameFiles(ranked, changed, h.lex)
-	entries, err := fileEntries(rep.Cwd, names)
+	entries, err := fileEntries(names)
 	if err != nil {
 		return err
 	}
 	if _, err := h.plugin.Replace(filesCollection, entries, branchkit.ScopeCollection()); err != nil {
 		return fmt.Errorf("replace %s: %w", filesCollection, err)
+	}
+	h.mu.Lock()
+	moved := h.project.cwd != rep.Cwd
+	h.mu.Unlock()
+	if moved {
+		if err := h.plugin.Put(projectCollection, currentProject, projectRecord{Cwd: rep.Cwd}); err != nil {
+			branchkit.Logf(pluginID, "keep the project folder: %v", err)
+		}
 	}
 
 	h.mu.Lock()
@@ -198,7 +220,7 @@ func (h *Host) refreshSettings() {
 	}
 }
 
-func fileEntries(cwd string, names nameTable) ([]branchkit.CollectionPutEntry, error) {
+func fileEntries(names nameTable) ([]branchkit.CollectionPutEntry, error) {
 	spoken := make([]string, 0, len(names))
 	for s := range names {
 		spoken = append(spoken, s)
@@ -206,7 +228,7 @@ func fileEntries(cwd string, names nameTable) ([]branchkit.CollectionPutEntry, e
 	sort.Strings(spoken)
 	entries := make([]branchkit.CollectionPutEntry, 0, len(spoken))
 	for _, s := range spoken {
-		raw, err := json.Marshal(fileRecord{Spoken: s, Paths: names[s], Cwd: cwd})
+		raw, err := json.Marshal(fileRecord{Spoken: s, Paths: names[s]})
 		if err != nil {
 			return nil, fmt.Errorf("marshal %q: %w", s, err)
 		}
@@ -239,6 +261,10 @@ func (h *Host) loadProject() error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filesCollection, err)
 	}
+	folders, err := h.plugin.ListAll(projectCollection)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", projectCollection, err)
+	}
 	p := project{names: nameTable{}}
 	for _, rec := range records {
 		var r fileRecord
@@ -246,7 +272,10 @@ func (h *Host) loadProject() error {
 			continue
 		}
 		p.names[r.Spoken] = r.Paths
-		if p.cwd == "" {
+	}
+	for _, rec := range folders {
+		var r projectRecord
+		if rec.ID == currentProject && json.Unmarshal(rec.Payload, &r) == nil {
 			p.cwd = r.Cwd
 		}
 	}

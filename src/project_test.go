@@ -26,7 +26,7 @@ func TestPublishMakesTheNamesTheCollection(t *testing.T) {
 	if err := json.Unmarshal(f.collections[filesCollection]["mission"], &rec); err != nil {
 		t.Fatal(err)
 	}
-	want := fileRecord{Spoken: "mission", Paths: []string{"docs/MISSION.md"}, Cwd: testCwd}
+	want := fileRecord{Spoken: "mission", Paths: []string{"docs/MISSION.md"}}
 	if !reflect.DeepEqual(rec, want) {
 		t.Errorf("record = %+v, want %+v", rec, want)
 	}
@@ -181,6 +181,31 @@ func TestQueuedReportsCollapseToTheNewest(t *testing.T) {
 	}
 	if f.replaces > 20 {
 		t.Errorf("%d replaces", f.replaces)
+	}
+}
+
+// Another checkout of the same project (a git worktree) has the same paths:
+// switching to it rewrites no name, only the one record naming the folder.
+func TestAnotherCheckoutOfTheProjectRewritesNoName(t *testing.T) {
+	f := newFakePlatform()
+	h := newHost(f, testLex)
+	files := []string{"docs/MISSION.md", "docs/DEV_LOOP.md"}
+	if err := h.publish(projectReport{Cwd: "/repo", Files: files}); err != nil {
+		t.Fatal(err)
+	}
+	before := f.collections[filesCollection]["mission"]
+	if err := h.publish(projectReport{Cwd: "/repo/.claude/worktrees/x", Files: files}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.collections[filesCollection]["mission"]; !bytes.Equal(got, before) {
+		t.Errorf("the name's record changed: %s -> %s", before, got)
+	}
+	var rec projectRecord
+	if err := json.Unmarshal(f.collections[projectCollection][currentProject], &rec); err != nil || rec.Cwd != "/repo/.claude/worktrees/x" {
+		t.Errorf("project record = %+v (%v)", rec, err)
+	}
+	if h.project.cwd != "/repo/.claude/worktrees/x" {
+		t.Errorf("cwd %q", h.project.cwd)
 	}
 }
 

@@ -41,11 +41,14 @@ func hostWith(t *testing.T, names nameTable) (*Host, *fakePlatform) {
 	f := newFakePlatform()
 	seedAlphabet(t, f)
 	h := newHost(f, testLex)
-	entries, err := fileEntries(testCwd, names)
+	entries, err := fileEntries(names)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.Replace(filesCollection, entries, scopeForTest()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Put(projectCollection, currentProject, projectRecord{Cwd: testCwd}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.loadProject(); err != nil {
