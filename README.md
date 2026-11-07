@@ -20,14 +20,19 @@ come first; other things (branches, issues, notes) and other destinations
 |---|---|
 | `mention <file>` | Type the file's address, `@path` and a space |
 | `mention` | List the files you changed or mentioned lately, each beside a word to say |
-| the word beside a file (`aim`, `bus`, …) | Type that file, from the list or when a name could mean several files |
+| the words beside files (`aim`, `aim car day`), after "mention" | Type those files, in the order said, each `@path` followed by a space |
+| `pick` and the words (`pick aim car day`), in a later hold | The same, while the list is open |
 | `<file>`, while the list is open | Type that file: after "mention", file names and the list's words are all that is heard |
+| the word beside a file, when a name could mean several files | Type that file |
 | `cancel` | Close the list without typing anything |
 
 The list holds the files your working tree has changed, then the ones you
 mentioned most recently in this project (since BranchKit started), at most 26,
 so every word is one word. It is the way to a file whose name does not come
-out right: say "mention", then its word.
+out right: say "mention", then its word. It stays up while you pick, so you
+can pick several files in one breath or one after another, by voice or by
+clicking them, until you say "cancel" or close it with its close button or
+Escape.
 
 ## How files get their names
 
@@ -124,6 +129,7 @@ path contains a space are left out, since a space ends a mention.
 |---|---|
 | `address.mention` | Type the address of the file `name` names, or offer the choices when it names several |
 | `address.insert` | Type the address of `path` |
+| `address.pick` | Type the addresses of `paths`, in order |
 | `address.browse` | List the files you changed or mentioned lately |
 | `address.dismiss` | Close the choices |
 
@@ -133,8 +139,10 @@ path contains a space are left out, since a space ends a mention.
 |---|---|
 | `address_files` | One record per name you can say: `{spoken, paths, cwd}`. Several paths make the name a choice |
 | `plugin.address.learned` | Your answers to "which file?": `{cwd, spoken, path}` |
-| `plugin.address.choices` | While you choose: each badge and its file. Cleared when the hold ends |
-| `plugin.address.choosing` | The exclusive mode that makes only the badges and "cancel" heard while you choose |
+| `plugin.address.choices` | While a list is open: each badge and its file. Cleared when it closes |
+| `plugin.address.choosing` | The exclusive mode that makes only the badges and "cancel" heard while you choose which file a name meant |
+| `plugin.address.browsing` | The list "mention" opened is on screen: "pick" and its words, and "cancel", are heard beside everything else |
+| `plugin.address.picking` | The hold "mention" opened its list in: its words alone are heard, with file names and "cancel" |
 
 `address_files` is rebuilt from git on every report, so Settings shows it as
 a one-line summary rather than an editable table: an edit there would be gone

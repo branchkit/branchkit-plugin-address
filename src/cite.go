@@ -21,6 +21,10 @@ const (
 	choicesCollection = "plugin.address.choices"
 	choosingTag       = "plugin.address.choosing"
 	browsingTag       = "plugin.address.browsing"
+	// pickingTag is the exclusive gate of the hold "mention" alone opened
+	// its list in (the command's sets_tags): there the badge words alone
+	// pick. It ends with that hold; browsingTag keeps the list answering.
+	pickingTag        = "plugin.address.picking"
 	learnedCollection = "plugin.address.learned"
 	latelyCollection  = "plugin.address.lately"
 	// alphabetCollection is the platform's pointing deck: one vetted
@@ -190,10 +194,14 @@ func (h *Host) recentIn(cwd string) []string {
 	return h.recentBy[cwd]
 }
 
-// noteRecent puts a typed file at the head of the project's recent list,
-// read from and written to the kept list, which is the truth: a list deleted
-// in Settings starts afresh here rather than coming back.
-func (h *Host) noteRecent(path string) {
+// noteRecent puts typed files at the head of the project's recent list, the
+// last typed first, read from and written to the kept list, which is the
+// truth: a list deleted in Settings starts afresh here rather than coming
+// back.
+func (h *Host) noteRecent(paths ...string) {
+	if len(paths) == 0 {
+		return
+	}
 	h.saveMu.Lock()
 	defer h.saveMu.Unlock()
 	h.mu.Lock()
@@ -201,12 +209,17 @@ func (h *Host) noteRecent(path string) {
 	h.mu.Unlock()
 	kept, err := h.keptFor(cwd)
 	if err != nil {
-		branchkit.Logf(pluginID, "note %s as mentioned: %v", path, err)
+		branchkit.Logf(pluginID, "note %s as mentioned: %v", strings.Join(paths, ", "), err)
 		return
 	}
-	list := []string{path}
+	var list []string
+	for i := len(paths) - 1; i >= 0; i-- {
+		if !slices.Contains(list, paths[i]) && len(list) < maxBrowse {
+			list = append(list, paths[i])
+		}
+	}
 	for _, p := range kept.Recent {
-		if p != path && len(list) < maxBrowse {
+		if !slices.Contains(list, p) && len(list) < maxBrowse {
 			list = append(list, p)
 		}
 	}
@@ -403,23 +416,46 @@ func (h *Host) lookup(spoken string) ([]string, string) {
 	return h.project.names[spoken], h.project.cwd
 }
 
-// insert types a file's address. When it answers an open choice, the answer
-// is remembered: that name in that project means this file from now on.
+// insert types a file's address. When it answers "which file?", the answer
+// is remembered (that name in that project means this file from now on) and
+// the choice closes; the list "mention" alone opened stays open.
 func (h *Host) insert(path string) error {
-	if !mentionable(path) {
-		return fmt.Errorf("%q is not a path inside the project", path)
+	return h.pick([]string{path})
+}
+
+// pick types the addresses of files, in the order given, each once. The
+// list "mention" alone opens takes several picks, in one breath or one
+// after another, and stays until it is closed ("cancel", its close button,
+// Escape): each pick answers no name, so it teaches none. "Which file?"
+// asks about one name and closes on its answer.
+func (h *Host) pick(paths []string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no file to type")
 	}
-	if err := h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: mention(path)}); err != nil {
-		return fmt.Errorf("type @%s: %w", path, err)
+	var once []string
+	var text strings.Builder
+	for _, p := range paths {
+		if !mentionable(p) {
+			return fmt.Errorf("%q is not a path inside the project", p)
+		}
+		if !slices.Contains(once, p) {
+			once = append(once, p)
+			text.WriteString(mention(p))
+		}
 	}
-	h.noteRecent(path)
+	if err := h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: text.String()}); err != nil {
+		return fmt.Errorf("type @%s: %w", strings.Join(once, " @"), err)
+	}
+	h.noteRecent(once...)
 	h.mu.Lock()
 	c := h.choosing
 	h.mu.Unlock()
-	// A pick from the list "mention" alone shows answers no name, so it
-	// teaches none.
-	if c != nil && c.spoken != "" && slices.Contains(c.paths, path) {
-		h.learn(c.cwd, c.spoken, path)
+	if c == nil || c.spoken == "" {
+		return nil
+	}
+	// Only a single file of those the name could mean is an answer to it.
+	if len(once) == 1 && slices.Contains(c.paths, once[0]) {
+		h.learn(c.cwd, c.spoken, once[0])
 	}
 	h.closeChoices()
 	return nil
@@ -428,7 +464,7 @@ func (h *Host) insert(path string) error {
 // offer shows a list of files, each beside a badge word. For an ambiguous
 // name the badges are the only thing heard until one is said, "cancel" is
 // said, or the hold ends; for the list "mention" opens they are heard
-// beside everything else until a pick or a close.
+// beside everything else until the list is closed.
 func (h *Host) offer(c choice) error {
 	badges := h.deck()
 	limit := maxChoices
@@ -486,10 +522,14 @@ func (h *Host) offer(c choice) error {
 	// the list is recorded (the word decodes at the release) and so leave
 	// it open until the next hold ends. Otherwise it closes with this hold
 	// (holdEnded).
-	gate := choosingTag
+	gate, others := choosingTag, []string{browsingTag, pickingTag}
 	if c.spoken == "" {
-		gate = browsingTag
+		gate, others = browsingTag, []string{choosingTag}
 	}
+	// Newest wins: the other kind of list's gates go, so one word never
+	// answers both ("which file?" for a name said while the list is open
+	// would otherwise leave two exclusive gates on, and a tie).
+	h.leave(others...)
 	if err := h.plugin.Put(gate, "singleton", struct{}{}); err != nil {
 		h.abandon(&c)
 		return fmt.Errorf("enter choosing: %w", err)
@@ -498,8 +538,8 @@ func (h *Host) offer(c choice) error {
 	footer := "say the word beside a file, or cancel"
 	phrase := fmt.Sprintf("%q could be %s. Say the word beside the one you mean.", c.spoken, countFiles(len(c.paths)))
 	if c.spoken == "" {
-		footer = "say \"pick\" and the word beside a file, or \"cancel\""
-		phrase = "Files you changed or mentioned. Say \"pick\" and the word beside one, or choose it."
+		footer = "say \"pick\" and the words beside files, or \"cancel\""
+		phrase = "Files you changed or mentioned. Say \"pick\" and the word beside one, or several, or choose them. The list stays until you close it."
 	}
 	var footerRef *string
 	if c.empty() {
@@ -561,8 +601,8 @@ func countFiles(n int) string {
 }
 
 // holdEnded closes a choice between the files a name could mean; a list
-// "mention" alone opened stays on screen until a pick or its close, unless
-// it is empty: with nothing to pick it has said what it had to say.
+// "mention" alone opened stays on screen until it is closed, unless it is
+// empty: with nothing to pick it has said what it had to say.
 func (h *Host) holdEnded() {
 	h.mu.Lock()
 	lasting := h.choosing != nil && h.choosing.spoken == "" && !h.choosing.empty()
@@ -586,18 +626,23 @@ func (h *Host) closeChoices() {
 	h.clearChoices()
 }
 
-// clearChoices removes the gate, the badges and the window.
+// clearChoices removes the gates, the badges and the window.
 func (h *Host) clearChoices() {
-	for _, gate := range []string{choosingTag, browsingTag} {
-		if _, err := h.plugin.Delete(gate, "singleton"); err != nil {
-			branchkit.Logf(pluginID, "leave %s: %v", gate, err)
-		}
-	}
+	h.leave(choosingTag, browsingTag, pickingTag)
 	if _, err := h.plugin.Replace(choicesCollection, nil, branchkit.ScopeCollection()); err != nil {
 		branchkit.Logf(pluginID, "clear choices: %v", err)
 	}
 	if _, err := h.plugin.OutputClear(branchkit.OutputClearRequest{Channel: hudChannel}); err != nil {
 		branchkit.Logf(pluginID, "choices clear: %v", err)
+	}
+}
+
+// leave removes gates.
+func (h *Host) leave(gates ...string) {
+	for _, gate := range gates {
+		if _, err := h.plugin.Delete(gate, "singleton"); err != nil {
+			branchkit.Logf(pluginID, "leave %s: %v", gate, err)
+		}
 	}
 }
 

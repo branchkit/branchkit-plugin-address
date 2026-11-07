@@ -55,6 +55,14 @@
         { "key": "path", "label": "Path", "placeholder": "docs/MISSION.md", "field_type": "string", "required": true }
       ]
     },
+    "pick": {
+      "uses": ["input.type_text"],
+      "label": "Type Several Files' Addresses",
+      "consequence": "reversible",
+      "fields": [
+        { "key": "paths", "label": "Paths", "placeholder": "docs/MISSION.md", "field_type": "string[]", "required": true }
+      ]
+    },
     "browse": {
       "label": "List Likely Files",
       "consequence": "reversible"
@@ -122,7 +130,21 @@
         "feeds_matching": {
           "type": "as_gates"
         },
-        "description": "The list \"mention\" opens is on screen. Adds its badge words and \"cancel\" to what you can say, in every hold until you pick a file or close the list; everything else still works."
+        "description": "The list \"mention\" opens is on screen. Adds \"pick\" and its badge words, and \"cancel\", to what you can say, in every hold until you close the list; everything else still works."
+      },
+      "plugin.address.picking": {
+        "preset": "tag",
+        "writers": "introducer_only",
+        "fields": [],
+        "lifecycle": {
+          "type": "clear_on_event",
+          "events": ["_platform.input.session_boundary"]
+        },
+        "exclusive": true,
+        "feeds_matching": {
+          "type": "as_gates"
+        },
+        "description": "The hold \"mention\" opened its list in. Exclusive, so its badge words alone pick files, one or several in a breath, a file's name types that file, and \"cancel\" closes the list. Ends with the hold; the list stays."
       },
       "plugin.address.project": {
         "preset": "data",

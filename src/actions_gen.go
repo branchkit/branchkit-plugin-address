@@ -42,3 +42,13 @@ type MentionParams struct {
 func HandleMention(p *branchkit.Plugin, fn func(MentionParams, *branchkit.OnActionRequest) (any, error)) {
 	branchkit.HandleActionTyped(p, "address.mention", fn)
 }
+
+// PickParams is the params shape for action "address.pick (Type Several Files' Addresses)".
+type PickParams struct {
+	Paths []string `json:"paths"`
+}
+
+// HandlePick registers a typed handler for action "address.pick (Type Several Files' Addresses)".
+func HandlePick(p *branchkit.Plugin, fn func(PickParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "address.pick", fn)
+}

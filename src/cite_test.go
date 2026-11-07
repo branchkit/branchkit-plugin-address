@@ -507,16 +507,108 @@ func TestTheListOutlivesTheHoldAndWhichFileDoesNot(t *testing.T) {
 	if err := h.insert("src/a.go"); err != nil { // picked later, by pointer
 		t.Fatal(err)
 	}
-	if got := f.typedText(); len(got) != 1 || f.cleared != 1 {
-		t.Errorf("typed %q, clears %d: a later pick types and closes", got, f.cleared)
+	if got := f.typedText(); len(got) != 1 || f.cleared != 0 || !f.has(browsingTag, "singleton") {
+		t.Errorf("typed %q, clears %d: a later pick types and leaves the list up", got, f.cleared)
 	}
 
+	// A name said while the list is open could mean two files: "which
+	// file?" replaces the list, and its gates go, so no word answers both.
+	if err := f.Put(pickingTag, "singleton", struct{}{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := h.cite("notes"); err != nil {
 		t.Fatal(err)
 	}
+	if !f.has(choosingTag, "singleton") || f.has(browsingTag, "singleton") || f.has(pickingTag, "singleton") {
+		t.Error("which file? should leave only its own gate on")
+	}
 	h.holdEnded()
-	if f.cleared != 2 || f.has(choosingTag, "singleton") {
+	if f.cleared != 1 || f.has(choosingTag, "singleton") {
 		t.Errorf("clears %d: which file? should close with the hold", f.cleared)
+	}
+}
+
+// Several words in one breath type several files, in the order said, each
+// once, and the list stays: its gate, its badges and its window.
+func TestSeveralPicksFromTheListTypeInOrderAndLeaveItOpen(t *testing.T) {
+	h, f := hostWith(t, nameTable{})
+	h.mu.Lock()
+	h.project.changed = []string{"src/a.go", "src/b.go", "src/c.go"}
+	h.mu.Unlock()
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	// "aim car bus": the words resolve to their files in the order said.
+	if err := h.pick([]string{"src/a.go", "src/c.go", "src/b.go"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := f.typedText(), []string{"@src/a.go @src/c.go @src/b.go "}; !reflect.DeepEqual(got, want) {
+		t.Errorf("typed %q, want %q", got, want)
+	}
+	if f.cleared != 0 || !f.has(browsingTag, "singleton") || f.count(choicesCollection) != 3 || h.isChoosing(nil) {
+		t.Errorf("clears %d: the list should stay open after a pick", f.cleared)
+	}
+	// Another pick, later: still open, still typing.
+	if err := h.pick([]string{"src/a.go", "src/a.go"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.typedText(); len(got) != 2 || got[1] != "@src/a.go " {
+		t.Errorf("typed %q: a file said twice is typed once", got)
+	}
+	if f.cleared != 0 || !f.has(browsingTag, "singleton") {
+		t.Error("the list should stay open until it is closed")
+	}
+	if f.count(learnedCollection) != 0 {
+		t.Error("picks from the list answer no name, so they teach none")
+	}
+	h.mu.Lock()
+	recent := append([]string(nil), h.recentIn(testCwd)...)
+	h.mu.Unlock()
+	if want := []string{"src/a.go", "src/b.go", "src/c.go"}; !reflect.DeepEqual(recent, want) {
+		t.Errorf("recent = %q, want %q (the last typed first)", recent, want)
+	}
+
+	// "cancel" (address.dismiss) closes it, gates and all.
+	if err := f.Put(pickingTag, "singleton", struct{}{}); err != nil {
+		t.Fatal(err)
+	}
+	h.closeChoices()
+	if f.cleared != 1 || f.has(browsingTag, "singleton") || f.has(pickingTag, "singleton") || f.count(choicesCollection) != 0 {
+		t.Errorf("clears %d: cancel should close the list, gates and badges", f.cleared)
+	}
+}
+
+// "Which file?" asks about one name: one pick answers it and closes it.
+func TestWhichFileClosesOnItsOnePick(t *testing.T) {
+	h, f := hostWith(t, nameTable{"notes": {"a/notes.md", "b/notes.md"}})
+	if err := h.cite("notes"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.pick([]string{"b/notes.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.typedText(); !reflect.DeepEqual(got, []string{"@b/notes.md "}) {
+		t.Errorf("typed %q", got)
+	}
+	if f.cleared != 1 || f.has(choosingTag, "singleton") || !h.isChoosing(nil) {
+		t.Errorf("clears %d: which file? should close on its pick", f.cleared)
+	}
+	if !f.has(learnedCollection, learnedID(testCwd, "notes")) {
+		t.Error("the answer should be remembered")
+	}
+}
+
+// A pick that names a file outside the project types nothing at all.
+func TestAPickWithAPathOutsideTheProjectTypesNothing(t *testing.T) {
+	h, f := hostWith(t, nameTable{})
+	if err := h.pick([]string{"src/a.go", "../secret"}); err == nil {
+		t.Error("the pick should be refused")
+	}
+	if err := h.pick(nil); err == nil {
+		t.Error("an empty pick should be refused")
+	}
+	if got := f.typedText(); len(got) != 0 {
+		t.Errorf("typed %q", got)
 	}
 }
 

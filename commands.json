@@ -8,9 +8,9 @@
   {
     "pattern": ["mention"],
     "action": { "type": "address.browse" },
-    "sets_tags": ["plugin.address.choosing"],
+    "sets_tags": ["plugin.address.picking"],
     "category": "Addresses",
-    "description": "List the files you changed or mentioned lately, each with a word to say. The list stays until you pick a file or close it: in a later hold, say \"pick\" and its word."
+    "description": "List the files you changed or mentioned lately, each with a word to say. Say one word or several (\"aim car day\") and each file is typed; the list stays until you close it. In a later hold, say \"pick\" and the words."
   },
   {
     "pattern": ["<file:address_files>"],
@@ -21,6 +21,13 @@
     "description": "Type the file whose name you say, while choosing which file an ambiguous name meant."
   },
   {
+    "pattern": ["<file:address_files>"],
+    "action": { "type": "address.mention", "params": { "name": "{file}" } },
+    "requires_tags": ["plugin.address.picking"],
+    "category": "Addresses",
+    "description": "Type the file whose name you say, in the hold the list \"mention\" opened in."
+  },
+  {
     "pattern": ["<choice:plugin.address.choices>"],
     "action": { "type": "address.insert", "params": { "path": "{choice}" } },
     "requires_tags": ["plugin.address.choosing"],
@@ -29,11 +36,25 @@
     "description": "Pick the file whose badge word you say, when a name could mean several."
   },
   {
-    "pattern": ["pick", "<choice:plugin.address.choices>"],
-    "action": { "type": "address.insert", "params": { "path": "{choice}" } },
+    "pattern": ["<choice:plugin.address.choices>+"],
+    "action": { "type": "address.pick", "params": { "paths": ["{choice}"] } },
+    "requires_tags": ["plugin.address.picking"],
+    "category": "Addresses",
+    "description": "Pick files from the list \"mention\" opened by their words, one or several in a breath, in the hold it opened in. The list stays open."
+  },
+  {
+    "pattern": ["pick", "<choice:plugin.address.choices>+"],
+    "action": { "type": "address.pick", "params": { "paths": ["{choice}"] } },
     "requires_tags": ["plugin.address.browsing"],
     "category": "Addresses",
-    "description": "Pick a file from the list \"mention\" opened, by \"pick\" and its word. The word needs \"pick\" in front: alone, alphabet words belong to spelling and link hints."
+    "description": "Pick files from the list \"mention\" opened, by \"pick\" and their words: \"pick aim car day\". The list stays open. The words need \"pick\" in front: alone, alphabet words belong to spelling and link hints."
+  },
+  {
+    "pattern": ["pick", "<choice:plugin.address.choices>+"],
+    "action": { "type": "address.pick", "params": { "paths": ["{choice}"] } },
+    "requires_tags": ["plugin.address.picking"],
+    "category": "Addresses",
+    "description": "Pick files by \"pick\" and their words, in the hold the list \"mention\" opened in."
   },
   {
     "pattern": ["pick", "<choice:plugin.address.choices>"],
@@ -41,7 +62,7 @@
     "requires_tags": ["plugin.address.choosing"],
     "clears_tags": ["plugin.address.choosing"],
     "category": "Addresses",
-    "description": "Pick a file by \"pick\" and its word, in the hold the list opened in."
+    "description": "Pick the file by \"pick\" and its badge word, when a name could mean several."
   },
   {
     "pattern": ["cancel"],
@@ -49,6 +70,14 @@
     "requires_tags": ["plugin.address.browsing"],
     "category": "Addresses",
     "description": "Close the list \"mention\" opened without typing anything."
+  },
+  {
+    "pattern": ["cancel"],
+    "action": { "type": "address.dismiss" },
+    "requires_tags": ["plugin.address.picking"],
+    "clears_tags": ["plugin.address.picking"],
+    "category": "Addresses",
+    "description": "Close the list \"mention\" opened, in the hold it opened in."
   },
   {
     "pattern": ["cancel"],

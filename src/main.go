@@ -28,6 +28,9 @@ func main() {
 	HandleInsert(p, func(params InsertParams, _ *branchkit.OnActionRequest) (any, error) {
 		return nil, h.insert(params.Path)
 	})
+	HandlePick(p, func(params PickParams, _ *branchkit.OnActionRequest) (any, error) {
+		return nil, h.pick(params.Paths)
+	})
 	HandleBrowse(p, func(*branchkit.OnActionRequest) (any, error) {
 		return nil, h.browse()
 	})
@@ -41,8 +44,8 @@ func main() {
 
 	// "Which file?" for a name lasts the hold (its exclusive gate clears
 	// itself then, manifest lifecycle). The list "mention" alone opens stays
-	// until a file is picked or the list is closed: by "cancel", by the
-	// card's close (the manifest's on_close), by the pointer, keys or switch.
+	// through every pick until it is closed: by "cancel", or by the card's
+	// close (the manifest's on_close) with the pointer, keys or switch.
 	p.OnInputSessionBoundary(h.holdEnded)
 
 	// Names published before a restart answer "mention" until the next prompt
