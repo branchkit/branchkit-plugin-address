@@ -578,6 +578,59 @@ func TestSeveralPicksFromTheListTypeInOrderAndLeaveItOpen(t *testing.T) {
 	}
 }
 
+// A report from another project (any Claude Code session reports) leaves
+// the open list alone, and a pick from it is noted among its own project's
+// files, not the newer project's.
+func TestAPickFromAListOfAnotherProjectIsNotedThere(t *testing.T) {
+	f := newFakePlatform()
+	seedAlphabet(t, f)
+	h := newHost(f, testLex)
+	if err := h.publish(projectReport{Cwd: testCwd, Files: []string{"src/a.go", "src/b.go"}, Changed: []string{"src/a.go", "src/b.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.browse(); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.publish(projectReport{Cwd: "/elsewhere", Files: []string{"notes.md"}, Changed: []string{"notes.md"}}); err != nil {
+		t.Fatal(err)
+	}
+	if f.cleared != 0 || !f.has(browsingTag, "singleton") {
+		t.Fatalf("clears %d: a report should leave the list open", f.cleared)
+	}
+	if err := h.pick([]string{"src/b.go"}); err != nil {
+		t.Fatal(err)
+	}
+	kept := func(cwd string) latelyRecord {
+		t.Helper()
+		rec, err := h.keptFor(cwd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rec
+	}
+	if got := kept("/elsewhere"); len(got.Recent) != 0 || !reflect.DeepEqual(got.Changed, []string{"notes.md"}) {
+		t.Errorf("the newer project's kept list = %+v, want nothing mentioned", got)
+	}
+	if got := kept(testCwd); !reflect.DeepEqual(got.Recent, []string{"src/b.go"}) || len(got.Changed) != 2 {
+		t.Errorf("the list's own project's kept list = %+v, want src/b.go mentioned and its changed files kept", got)
+	}
+
+	// A name said in the newer project is noted there, though the same
+	// relative path is on the open list (two worktrees of one repository).
+	if err := h.publish(projectReport{Cwd: "/elsewhere", Files: []string{"notes.md", "src/a.go"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.cite("a"); err != nil {
+		t.Fatal(err)
+	}
+	if got := kept("/elsewhere"); !reflect.DeepEqual(got.Recent, []string{"src/a.go"}) {
+		t.Errorf("the newer project's kept list = %+v, want the cited src/a.go", got)
+	}
+	if got := kept(testCwd); !reflect.DeepEqual(got.Recent, []string{"src/b.go"}) {
+		t.Errorf("the list's own project's kept list = %+v, want only its own pick", got)
+	}
+}
+
 // "Which file?" asks about one name: one pick answers it and closes it.
 func TestWhichFileClosesOnItsOnePick(t *testing.T) {
 	h, f := hostWith(t, nameTable{"notes": {"a/notes.md", "b/notes.md"}})

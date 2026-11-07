@@ -194,18 +194,27 @@ func (h *Host) recentIn(cwd string) []string {
 	return h.recentBy[cwd]
 }
 
-// noteRecent puts typed files at the head of the project's recent list, the
-// last typed first, read from and written to the kept list, which is the
+// noteRecent puts typed files at the head of the current project's recent
+// list.
+func (h *Host) noteRecent(paths ...string) {
+	h.mu.Lock()
+	cwd := h.project.cwd
+	h.mu.Unlock()
+	h.noteRecentIn(cwd, paths...)
+}
+
+// noteRecentIn puts typed files at the head of project cwd's recent list,
+// the last typed first, read from and written to the kept list, which is the
 // truth: a list deleted in Settings starts afresh here rather than coming
 // back.
-func (h *Host) noteRecent(paths ...string) {
+func (h *Host) noteRecentIn(cwd string, paths ...string) {
 	if len(paths) == 0 {
 		return
 	}
 	h.saveMu.Lock()
 	defer h.saveMu.Unlock()
 	h.mu.Lock()
-	cwd, changed := h.project.cwd, h.project.changed
+	current, changed := h.project.cwd, h.project.changed
 	h.mu.Unlock()
 	kept, err := h.keptFor(cwd)
 	if err != nil {
@@ -222,6 +231,10 @@ func (h *Host) noteRecent(paths ...string) {
 		if !slices.Contains(list, p) && len(list) < maxBrowse {
 			list = append(list, p)
 		}
+	}
+	// Another project's changed files are its last report's, kept.
+	if cwd != current {
+		changed = kept.Changed
 	}
 	h.mu.Lock()
 	h.recentBy[cwd] = list
@@ -390,7 +403,7 @@ func (h *Host) cite(spoken string) error {
 	case len(paths) == 0:
 		return fmt.Errorf("no file in this project is called %q", spoken)
 	case len(paths) == 1:
-		return h.insert(paths[0])
+		return h.typeFiles(paths, false)
 	}
 	// Read fresh: the person may have deleted an answer to be asked again.
 	if err := h.loadLearned(); err != nil {
@@ -401,11 +414,11 @@ func (h *Host) cite(spoken string) error {
 	h.mu.Unlock()
 	for _, p := range paths {
 		if p == picked {
-			return h.insert(p)
+			return h.typeFiles([]string{p}, false)
 		}
 	}
 	if p, ok := clearWinner(paths); ok {
-		return h.insert(p)
+		return h.typeFiles([]string{p}, false)
 	}
 	return h.offer(choice{cwd: cwd, spoken: spoken, paths: paths})
 }
@@ -416,19 +429,28 @@ func (h *Host) lookup(spoken string) ([]string, string) {
 	return h.project.names[spoken], h.project.cwd
 }
 
-// insert types a file's address. When it answers "which file?", the answer
-// is remembered (that name in that project means this file from now on) and
-// the choice closes; the list "mention" alone opened stays open.
+// insert types the address of a file picked from a list (a badge word, a
+// pressed row). When it answers "which file?", the answer is remembered
+// (that name in that project means this file from now on) and the choice
+// closes; the list "mention" alone opened stays open.
 func (h *Host) insert(path string) error {
 	return h.pick([]string{path})
 }
 
-// pick types the addresses of files, in the order given, each once. The
-// list "mention" alone opens takes several picks, in one breath or one
-// after another, and stays until it is closed ("cancel", its close button,
-// Escape): each pick answers no name, so it teaches none. "Which file?"
-// asks about one name and closes on its answer.
+// pick types the addresses of files picked from a list, in the order
+// given, each once. The list "mention" alone opens takes several picks, in
+// one breath or one after another, and stays until it is closed ("cancel",
+// its close button, Escape): each pick answers no name, so it teaches none.
+// "Which file?" asks about one name and closes on its answer.
 func (h *Host) pick(paths []string) error {
+	return h.typeFiles(paths, true)
+}
+
+// typeFiles types the addresses of files, in the order given, each once,
+// and notes them as mentioned: in the open list's project when they were
+// picked from it (fromList), else in the current project, where a name is
+// looked up.
+func (h *Host) typeFiles(paths []string, fromList bool) error {
 	if len(paths) == 0 {
 		return fmt.Errorf("no file to type")
 	}
@@ -446,10 +468,19 @@ func (h *Host) pick(paths []string) error {
 	if err := h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: text.String()}); err != nil {
 		return fmt.Errorf("type @%s: %w", strings.Join(once, " @"), err)
 	}
-	h.noteRecent(once...)
 	h.mu.Lock()
 	c := h.choosing
+	cwd := h.project.cwd
 	h.mu.Unlock()
+	// Files picked from a list are its project's, which a report from
+	// another Claude Code session (each one reports) may have moved away
+	// from since it opened: noted there, not among the newer project's.
+	// A name said meanwhile is the current project's, even when the same
+	// relative path is on the list (two worktrees of one repository).
+	if fromList && c != nil && c.cwd != "" && !slices.ContainsFunc(once, func(p string) bool { return !slices.Contains(c.paths, p) }) {
+		cwd = c.cwd
+	}
+	h.noteRecentIn(cwd, once...)
 	if c == nil || c.spoken == "" {
 		return nil
 	}
